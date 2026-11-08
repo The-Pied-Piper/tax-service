@@ -18,3 +18,11 @@ class ConflictError(DomainError):
 
 class ValidationError(DomainError):
     pass
+
+
+class InvalidArgumentError(DomainError):
+    """A request value is invalid or not supported; `field` names the request field at fault."""
+
+    def __init__(self, field: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field

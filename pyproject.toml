@@ -25,6 +25,11 @@ module = ["connexion.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+# tax-engine does not ship a py.typed marker yet.
+module = ["tax_engine.*"]
+follow_untyped_imports = true
+
+[[tool.mypy.overrides]]
 module = ["datamodel_code_generator.*"]
 implicit_reexport = true
 

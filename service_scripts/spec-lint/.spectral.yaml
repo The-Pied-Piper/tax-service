@@ -20,3 +20,5 @@ overrides:
 rules:
   # The generator turns operationId into a Python function name, so the AEP form is unusable.
   aep-132-operation-id: "off"
+  # Same reason for custom methods: AEP wants a leading colon, the generator wants a function name.
+  aep-136-operation-id: "off"
