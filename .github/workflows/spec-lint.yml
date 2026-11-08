@@ -5,18 +5,14 @@ on:
     branches: [main, dev]
     paths:
       - openapi/**
-      - .spectral.yaml
-      - package.json
-      - package-lock.json
       - service_scripts/lint-api.sh
+      - service_scripts/spec-lint/**
       - .github/workflows/spec-lint.yml
   pull_request:
     paths:
       - openapi/**
-      - .spectral.yaml
-      - package.json
-      - package-lock.json
       - service_scripts/lint-api.sh
+      - service_scripts/spec-lint/**
       - .github/workflows/spec-lint.yml
   workflow_dispatch:
 
@@ -37,6 +33,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: service_scripts/spec-lint/package-lock.json
 
       # The same command as local development.
       - name: Lint the API spec
