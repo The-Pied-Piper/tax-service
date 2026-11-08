@@ -1,0 +1,43 @@
+name: Spec lint
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - openapi/**
+      - .spectral.yaml
+      - package.json
+      - package-lock.json
+      - service_scripts/lint-api.sh
+      - .github/workflows/spec-lint.yml
+  pull_request:
+    paths:
+      - openapi/**
+      - .spectral.yaml
+      - package.json
+      - package-lock.json
+      - service_scripts/lint-api.sh
+      - .github/workflows/spec-lint.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      # The same command as local development.
+      - name: Lint the API spec
+        run: ./dev.sh lint-api
