@@ -3,7 +3,8 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["migrations/versions", "tools/service_gen/templates"]
+# app/generated is the generator's output; ./dev.sh check fails if it differs from a fresh sync.
+extend-exclude = ["migrations/versions", "tools/service_gen/templates", "app/generated"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

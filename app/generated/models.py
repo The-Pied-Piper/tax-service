@@ -31,7 +31,7 @@ class ComputeTakeHomeCalculationRequest(BaseModel):
     salary: Annotated[
         str,
         Field(
-            description="Gross yearly salary, above 0, up to two decimals.",
+            description="Gross yearly salary, above 0 and below 1e15, up to two decimals.",
             examples=["70000.00"],
             pattern="^(0*[1-9][0-9]*|[0-9]+\\.[0-9]{1,2})$",
         ),

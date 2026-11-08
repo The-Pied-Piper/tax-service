@@ -7,17 +7,10 @@ from typing import Any
 from pydantic import TypeAdapter
 
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
-from app.generated.models import (
-    ComputeTakeHomeCalculationRequest,
-    ComputeTakeHomeCalculationResponse,
-)
+from app.generated.models import ComputeTakeHomeCalculationRequest, ComputeTakeHomeCalculationResponse
 
-_compute_take_home_calculation_body: TypeAdapter[ComputeTakeHomeCalculationRequest] = TypeAdapter(
-    ComputeTakeHomeCalculationRequest
-)
-_compute_take_home_calculation_response: TypeAdapter[ComputeTakeHomeCalculationResponse] = (
-    TypeAdapter(ComputeTakeHomeCalculationResponse)
-)
+_compute_take_home_calculation_body: TypeAdapter[ComputeTakeHomeCalculationRequest] = TypeAdapter(ComputeTakeHomeCalculationRequest)
+_compute_take_home_calculation_response: TypeAdapter[ComputeTakeHomeCalculationResponse] = TypeAdapter(ComputeTakeHomeCalculationResponse)
 
 
 class TakeHomeCalculationsHandlers:
@@ -37,6 +30,4 @@ class TakeHomeCalculationsHandlers:
         """POST /take-home-calculations:compute - Compute take-home pay for a gross salary."""
         request = _compute_take_home_calculation_body.validate_python(body)
         result = await self._adapter.compute_take_home_calculation(body=request)
-        return _compute_take_home_calculation_response.dump_python(
-            result, mode="json", by_alias=True
-        ), 200
+        return _compute_take_home_calculation_response.dump_python(result, mode="json", by_alias=True), 200

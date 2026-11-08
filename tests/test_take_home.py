@@ -44,6 +44,8 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
         for line in lines:
             assert line["text"]
             assert set(line) == {"label", "amount", "text"}
+    labels = [line["label"] for lines in forms.values() for line in lines]
+    assert any(label is not None for label in labels)
     assert compute(client).json()["trace"] is None
 
 
@@ -63,6 +65,12 @@ def test_unsupported_values_name_the_field(
     assert response.status_code == 400
     assert response.headers["content-type"].startswith("application/problem+json")
     assert response.json()["field"] == field
+
+
+def test_a_salary_the_engine_cannot_hold_is_a_400_naming_the_field(client: TestClient) -> None:
+    response = compute(client, salary="99999999999999999999999.99")
+    assert response.status_code == 400
+    assert response.json()["field"] == "salary"
 
 
 @pytest.mark.parametrize("salary", ["-5", "abc", "70000.123", ""])

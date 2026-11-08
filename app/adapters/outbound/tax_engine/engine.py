@@ -43,7 +43,7 @@ class TaxEngineAdapter:
                 for sheet in form_sheets:
                     lines = tuple(
                         TraceEntry(
-                            label=_label(line),
+                            label=line.label,
                             amount=line.amount,
                             text=self._renderer.render(line),
                         )
@@ -58,9 +58,3 @@ class TaxEngineAdapter:
             income_tax=figure("ca/t1_tax_and_credits", "ca/refund_or_balance_owing"),
             trace=tuple(trace),
         )
-
-
-def _label(line: object) -> str | None:
-    """The figure a trace line is about. tax-engine #591 gives each line a `label`; until it
-    lands there is none, and this is the one place to read it from."""
-    return None

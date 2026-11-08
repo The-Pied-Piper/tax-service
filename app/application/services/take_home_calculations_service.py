@@ -13,6 +13,7 @@ from app.application.ports.tax_engine import TaxEnginePort
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
     CENTS,
+    SALARY_LIMIT,
     SUPPORTED_JURISDICTIONS,
     TakeHomeResult,
 )
@@ -36,6 +37,8 @@ class TakeHomeCalculationsService:
             )
         if salary <= 0:
             raise InvalidArgumentError("salary", "salary must be above 0")
+        if salary >= SALARY_LIMIT:
+            raise InvalidArgumentError("salary", "salary must be below 1,000,000,000,000,000")
         provisional = _provisional(jurisdiction_code, year)
         # The engine is plain synchronous code; keep it off the event loop.
         figures = await asyncio.to_thread(

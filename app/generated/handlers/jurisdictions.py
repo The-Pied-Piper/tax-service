@@ -9,9 +9,7 @@ from pydantic import TypeAdapter
 from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
 from app.generated.models import ListJurisdictionsResponse
 
-_list_jurisdictions_response: TypeAdapter[ListJurisdictionsResponse] = TypeAdapter(
-    ListJurisdictionsResponse
-)
+_list_jurisdictions_response: TypeAdapter[ListJurisdictionsResponse] = TypeAdapter(ListJurisdictionsResponse)
 
 
 class JurisdictionsHandlers:
@@ -30,7 +28,5 @@ class JurisdictionsHandlers:
         page_token: str | None = None,
     ) -> tuple[Any, int]:
         """GET /jurisdictions - List supported jurisdictions and tax years."""
-        result = await self._adapter.list_jurisdictions(
-            max_page_size=max_page_size, page_token=page_token
-        )
+        result = await self._adapter.list_jurisdictions(max_page_size=max_page_size, page_token=page_token)
         return _list_jurisdictions_response.dump_python(result, mode="json", by_alias=True), 200

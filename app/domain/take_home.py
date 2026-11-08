@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 CENTS = Decimal("0.01")
+# The engine works in 28-digit decimals and fails on a salary much larger than this.
+SALARY_LIMIT = Decimal("1e15")
 
 
 @dataclass(frozen=True)
@@ -25,7 +27,7 @@ class FormTrace:
 
 @dataclass(frozen=True)
 class EngineFigures:
-    """What the tax engine returns for one salary: each deduction, the year, and the trace."""
+    """What the tax engine returns for one salary: each deduction and the trace."""
 
     cpp: Decimal
     cpp2: Decimal
