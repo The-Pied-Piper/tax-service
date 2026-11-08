@@ -1,0 +1,69 @@
+{% if tag.is_health %}
+"""Health checks for the ``{{ tag.name }}`` tag. Implements {{ tag.pascal }}Port.
+
+Liveness always succeeds. Readiness runs every probe handed over by `main.py` and
+fails with HTTP 503 (NotReadyError) on the first unavailable dependency.
+`service-gen sync` never overwrites this file.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
+from {{ package }}.application.ports.health import ReadinessProbe
+
+
+class {{ tag.pascal }}Service:
+    def __init__(self, probes: Sequence[ReadinessProbe]) -> None:
+        self._probes = probes
+{% for op in tag.operations %}
+
+    async def {{ op.function_name }}(
+        self,
+{% for p in op.port_params %}
+        {{ p }},
+{% endfor %}
+    ) -> Any:
+{% if op.probe_kind == "ready" %}
+        for probe in self._probes:
+            await probe.check()
+{% endif %}
+{% if op.response_type %}
+        return {"status": "ok"}
+{% else %}
+        return None
+{% endif %}
+{% endfor %}
+{% else %}
+"""Business logic for the ``{{ tag.name }}`` tag. Implements {{ tag.pascal }}Port.
+
+Unimplemented operations surface as HTTP 501 until you fill them in.
+`service-gen sync` never overwrites this file.
+"""
+
+from __future__ import annotations
+
+{% for module, names in tag.type_imports if module < "typing" %}
+from {{ module }} import {{ names }}
+{% endfor %}
+from typing import Any
+{% for module, names in tag.type_imports if module > "typing" %}
+from {{ module }} import {{ names }}
+{% endfor %}
+
+
+class {{ tag.pascal }}Service:
+{% for op in tag.operations %}
+    async def {{ op.function_name }}(
+        self,
+{% for p in op.port_params %}
+        {{ p }},
+{% endfor %}
+    ) -> Any:
+        raise NotImplementedError("{{ op.operation_id }}")
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endif %}

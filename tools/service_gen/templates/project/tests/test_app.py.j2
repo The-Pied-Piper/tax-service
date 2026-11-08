@@ -1,0 +1,25 @@
+"""Smoke tests proving the spec is served and every operation is wired.
+
+Operations answer 501 until their service method is implemented; replace these
+with real tests as you go. Readiness may be 503 when no database is reachable.
+"""
+
+from starlette.testclient import TestClient
+
+BASE = "{{ spec.base_path }}"
+
+
+def test_spec_is_served(client: TestClient) -> None:
+    assert client.get(f"{BASE}/openapi.json").status_code == 200
+{% for op in spec.operations if op.method == "get" and not op.has_required_inputs %}
+
+
+def test_{{ op.function_name }}_is_wired(client: TestClient) -> None:
+{% if op.probe_kind == "live" %}
+    assert client.get(f"{BASE}{{ op.path }}").status_code == 200
+{% elif op.probe_kind == "ready" %}
+    assert client.get(f"{BASE}{{ op.path }}").status_code in (200, 503)
+{% else %}
+    assert client.get(f"{BASE}{{ op.path }}").status_code in (200, 501)
+{% endif %}
+{% endfor %}

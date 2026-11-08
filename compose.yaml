@@ -1,0 +1,41 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HOME: /tmp
+      # Tells ./dev.sh it is already inside the app container: run commands directly.
+      IN_APP_CONTAINER: "1"
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-DEBUG}
+      APP_DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+volumes:
+  pgdata:

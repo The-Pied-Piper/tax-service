@@ -1,0 +1,7 @@
+"""Postgres outbound adapter: engine, sessions, ORM models, repositories, readiness probe."""
+
+from {{ package }}.adapters.outbound.db.engine import create_engine, create_session_factory
+from {{ package }}.adapters.outbound.db.health import DatabaseProbe
+from {{ package }}.adapters.outbound.db.models import Base
+
+__all__ = ["Base", "DatabaseProbe", "create_engine", "create_session_factory"]

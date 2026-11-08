@@ -1,0 +1,49 @@
+"""Inbound request adapter for the ``{{ tag.name }}`` tag.
+
+Translates wire DTOs (generated Pydantic models) into domain objects, calls the
+application port, and maps the result back onto a response DTO. This file is
+yours: `service-gen sync` never overwrites it.
+"""
+
+from __future__ import annotations
+
+{% for module, names in tag.type_imports if module < "typing" %}
+from {{ module }} import {{ names }}
+{% endfor %}
+{% if tag.adapter_uses_any %}
+from typing import Any
+{% endif %}
+{% for module, names in tag.type_imports if module > "typing" %}
+from {{ module }} import {{ names }}
+{% endfor %}
+{% if tag.adapter_uses_any or tag.type_imports %}
+
+{% endif %}
+from pydantic import TypeAdapter
+
+from {{ package }}.application.ports.{{ tag.snake }}_port import {{ tag.pascal }}Port
+{% if models %}
+from {{ package }}.generated.models import {{ models | join(", ") }}
+{% endif %}
+
+
+class {{ tag.pascal }}RequestAdapter:
+    def __init__(self, service: {{ tag.pascal }}Port) -> None:
+        self._service = service
+{% for op in tag.operations %}
+
+    async def {{ op.function_name }}(
+        self,
+{% for p in op.adapter_params %}
+        {{ p }},
+{% endfor %}
+    ) -> {{ op.response_type or "None" }}:
+        # TODO: build domain objects from the inputs instead of passing DTOs through.
+{% if op.response_type %}
+        result = await self._service.{{ op.function_name }}({{ op.call_args | join(", ") }})
+        # TODO: map the domain result onto the response DTO.
+        return TypeAdapter({{ op.response_type }}).validate_python(result, from_attributes=True)
+{% else %}
+        await self._service.{{ op.function_name }}({{ op.call_args | join(", ") }})
+{% endif %}
+{% endfor %}

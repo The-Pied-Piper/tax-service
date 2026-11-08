@@ -1,0 +1,9 @@
+-r requirements.in
+-r tools/service_gen/requirements.in
+httpx>=0.27
+mypy>=1.11
+openapi-spec-validator>=0.7
+pytest>=8.3
+pytest-asyncio>=0.24
+ruff>=0.6
+types-pyyaml

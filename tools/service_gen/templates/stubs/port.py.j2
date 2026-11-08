@@ -1,0 +1,29 @@
+"""Application port for the ``{{ tag.name }}`` tag.
+
+The inbound adapter calls this; a service in `application/services` implements it.
+Replace `Any` with your domain types. `service-gen sync` never overwrites this file.
+"""
+
+from __future__ import annotations
+
+{% for module, names in tag.type_imports if module < "typing" %}
+from {{ module }} import {{ names }}
+{% endfor %}
+from typing import Any, Protocol
+{% for module, names in tag.type_imports if module > "typing" %}
+from {{ module }} import {{ names }}
+{% endfor %}
+
+
+class {{ tag.pascal }}Port(Protocol):
+{% for op in tag.operations %}
+    async def {{ op.function_name }}(
+        self,
+{% for p in op.port_params %}
+        {{ p }},
+{% endfor %}
+    ) -> Any: ...
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}

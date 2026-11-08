@@ -1,0 +1,11 @@
+import pytest
+from starlette.testclient import TestClient
+
+from {{ package }}.main import create_app
+from {{ package }}.settings import Settings
+
+
+@pytest.fixture
+def client() -> TestClient:
+    test_client: TestClient = create_app(Settings()).test_client()
+    return test_client

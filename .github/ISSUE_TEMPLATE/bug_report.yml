@@ -1,0 +1,28 @@
+name: Bug report
+description: Something in the template or generator does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems do not belong here: please report those privately, see [SECURITY.md](https://github.com/The-Pied-Piper/service-template/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran (for example `./dev.sh init`) and the relevant part of your OpenAPI spec.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: the commit hash, or the value in TEMPLATE_VERSION

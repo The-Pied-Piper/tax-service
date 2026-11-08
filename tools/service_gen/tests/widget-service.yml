@@ -1,0 +1,142 @@
+openapi: "3.0.3"
+info:
+  title: Widget Service
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api/v1
+    description: local
+paths:
+  /status/livez:
+    get:
+      tags: [Status]
+      summary: Check liveness of application.
+      operationId: getLivez
+      responses:
+        "200":
+          description: App is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOutput"
+  /status/readyz:
+    get:
+      tags: [Status]
+      summary: Check readiness of application.
+      operationId: getReadyz
+      responses:
+        "200":
+          description: App is ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOutput"
+  /widgets:
+    get:
+      tags: [Widgets]
+      summary: List widgets.
+      operationId: listWidgets
+      parameters:
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A page of widgets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetPage"
+    post:
+      tags: [Widgets]
+      summary: Create a widget.
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWidgetRequest"
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+  /widgets/{widgetId}:
+    parameters:
+      - name: widgetId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Widgets]
+      summary: Fetch a widget.
+      operationId: getWidget
+      responses:
+        "200":
+          description: The widget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+        "404":
+          description: Not found.
+    delete:
+      tags: [Widgets]
+      summary: Delete a widget.
+      operationId: deleteWidget
+      responses:
+        "204":
+          description: Deleted.
+components:
+  schemas:
+    StatusOutput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    CreateWidgetRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        weightGrams:
+          type: integer
+          minimum: 0
+    Widget:
+      type: object
+      required: [id, name, weightGrams]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        weightGrams:
+          type: integer
+    WidgetPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Widget"
+        nextCursor:
+          type: string
+          nullable: true

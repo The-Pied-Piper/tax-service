@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # Same commands as local development, inside the same dev image.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Build the dev image with layer caching, tagged as compose names it
+      # (<directory>-app) so `./dev.sh check` finds it and does not rebuild.
+      # The cache key is the layers themselves, so changing the Dockerfile or
+      # requirements*.txt invalidates exactly the layers that depend on them.
+      - name: Read runner UID and GID
+        id: ids
+        run: |
+          echo "uid=$(id -u)" >> "$GITHUB_OUTPUT"
+          echo "gid=$(id -g)" >> "$GITHUB_OUTPUT"
+
+      - name: Build dev image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: dev
+          build-args: |
+            UID=${{ steps.ids.outputs.uid }}
+            GID=${{ steps.ids.outputs.gid }}
+          tags: ${{ github.event.repository.name }}-app
+          load: true
+          cache-from: type=gha,scope=dev
+          cache-to: type=gha,scope=dev,mode=max
+
+      - name: Check generated code, lint, typecheck, test, check migrations
+        run: ./dev.sh check
+
+      - name: Tear down
+        if: always()
+        run: ./dev.sh down
+
+  image:
+    # Only meaningful once `./dev.sh init` has produced app/; the template repo skips it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build production image
+        if: hashFiles('app/main.py') != ''
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: prod
+          tags: ${{ github.event.repository.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=prod
+          cache-to: type=gha,scope=prod,mode=max

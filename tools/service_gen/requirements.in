@@ -1,0 +1,6 @@
+# Generator deps; compiled to the pinned requirements.txt beside this file, and into
+# requirements-dev.txt via requirements-dev.in (see their headers for the commands).
+# ruff (used to format generated models) comes from requirements-dev.in.
+datamodel-code-generator>=0.26
+jinja2>=3.1
+pyyaml>=6.0
