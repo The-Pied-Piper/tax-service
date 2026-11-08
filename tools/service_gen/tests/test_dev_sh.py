@@ -7,7 +7,10 @@ the same ./dev.sh commands from the host or inside the dev container. A fake
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
+import socket
 import stat
 import subprocess
 from pathlib import Path
@@ -93,3 +96,87 @@ def test_container_refuses_commands_that_manage_containers(fake_docker: Path, co
     assert result.returncode != 0
     assert "run it from the host" in result.stderr
     assert calls(fake_docker) == []
+
+
+# --- host conveniences: ssh agent and git identity ------------------------------------
+
+
+def lib_env(**extra: str) -> dict[str, str]:
+    """What scripts/_lib.sh leaves exported, for a host with the given environment."""
+    keep = ("PATH", "HOME")
+    env = {k: v for k, v in os.environ.items() if k in keep}
+    env.update(extra)
+    result = subprocess.run(
+        ["bash", "-c", f"source {ROOT}/scripts/_lib.sh; env"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+
+
+def agent_socket(tmp_path: Path) -> Path:
+    sock_path = tmp_path / "agent.sock"
+    with socket.socket(socket.AF_UNIX) as s:
+        s.bind(str(sock_path))
+    return sock_path
+
+
+@pytest.mark.skipif(os.uname().sysname == "Darwin", reason="macOS uses Docker Desktop's fixed path")
+def test_host_ssh_agent_socket_is_left_for_compose_to_mount(tmp_path: Path) -> None:
+    env = lib_env(SSH_AUTH_SOCK=str(agent_socket(tmp_path)))
+
+    assert "SSH_AGENT_SOCKET" not in env
+
+
+@pytest.mark.skipif(os.uname().sysname == "Darwin", reason="macOS uses Docker Desktop's fixed path")
+def test_no_ssh_agent_mounts_a_placeholder() -> None:
+    assert lib_env()["SSH_AGENT_SOCKET"] == "/dev/null"
+    assert lib_env(SSH_AUTH_SOCK="/nonexistent/agent.sock")["SSH_AGENT_SOCKET"] == "/dev/null"
+
+
+def test_ssh_agent_sharing_can_be_turned_off(tmp_path: Path) -> None:
+    env = lib_env(SSH_AUTH_SOCK=str(agent_socket(tmp_path)), DEV_SSH_AGENT="0")
+
+    assert env["SSH_AGENT_SOCKET"] == "/dev/null"
+
+
+def test_git_identity_comes_from_host_git_config(tmp_path: Path) -> None:
+    config = tmp_path / "gitconfig"
+    config.write_text("[user]\n\tname = Ada Lovelace\n\temail = ada@example.com\n")
+    env = lib_env(GIT_CONFIG_GLOBAL=str(config))
+
+    assert env["GIT_AUTHOR_NAME"] == env["GIT_COMMITTER_NAME"] == "Ada Lovelace"
+    assert env["GIT_AUTHOR_EMAIL"] == env["GIT_COMMITTER_EMAIL"] == "ada@example.com"
+
+
+def has_docker_compose() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    return subprocess.run(["docker", "compose", "version"], capture_output=True).returncode == 0
+
+
+@pytest.mark.skipif(not has_docker_compose(), reason="needs the docker CLI with compose")
+@pytest.mark.parametrize(
+    ("env", "source"),
+    [
+        ({}, "/dev/null"),
+        ({"SSH_AUTH_SOCK": "/tmp/a:b/agent.sock"}, "/tmp/a:b/agent.sock"),
+        ({"SSH_AUTH_SOCK": "/tmp/x.sock", "SSH_AGENT_SOCKET": "/tmp/y.sock"}, "/tmp/y.sock"),
+    ],
+)
+def test_compose_mounts_the_agent_socket(env: dict[str, str], source: str) -> None:
+    keep = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME")}
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=ROOT,
+        env={**keep, **env},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    volumes = json.loads(result.stdout)["services"]["app"]["volumes"]
+    agent = next(v for v in volumes if v["target"] == "/tmp/ssh-agent.sock")
+    assert agent["source"] == source
+    assert agent["bind"]["create_host_path"] is False

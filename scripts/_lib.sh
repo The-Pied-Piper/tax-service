@@ -6,6 +6,28 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # Run as the host user so files written through the bind mount stay yours.
 export UID GID="$(id -g)"
 
+# Host conveniences for the app container. Your git identity is passed through
+# (compose.yaml names the variables). compose.yaml also mounts your ssh agent's
+# socket from SSH_AGENT_SOCKET, else SSH_AUTH_SOCK; we only set SSH_AGENT_SOCKET
+# where that default is wrong. On macOS it assumes Docker Desktop's agent socket
+# path (untested elsewhere). DEV_SSH_AGENT=0 turns the sharing off.
+git_identity() { git config "user.$1" 2>/dev/null || true; }
+name="$(git_identity name)"; email="$(git_identity email)"
+if [[ -n "$name" ]]; then
+    export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-$name}" GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-$name}"
+fi
+if [[ -n "$email" ]]; then
+    export GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-$email}" GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-$email}"
+fi
+unset name email
+if [[ "${DEV_SSH_AGENT:-1}" == 0 ]]; then
+    export SSH_AGENT_SOCKET=/dev/null
+elif [[ "$(uname -s)" == Darwin ]]; then
+    export SSH_AGENT_SOCKET=/run/host-services/ssh-auth.sock
+elif [[ ! -S "${SSH_AUTH_SOCK:-}" ]]; then
+    export SSH_AGENT_SOCKET=/dev/null
+fi
+
 # compose.yaml sets IN_APP_CONTAINER=1 on the app service. Inside it (e.g. a VS
 # Code dev container) commands run directly; from the host they run in a
 # one-off app container. Either way, `./dev.sh test` does the same thing.
