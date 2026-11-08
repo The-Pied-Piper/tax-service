@@ -2,14 +2,22 @@ openapi: "3.0.3"
 info:
   title: Tax Service
   version: 1.0.0
+  description: Take-home pay and income tax calculations, built on tax-engine.
+  contact:
+    name: Tax Service on GitHub
+    url: https://github.com/The-Pied-Piper/tax-service
 servers:
   - url: http://localhost:8000/api/v1
     description: local
+tags:
+  - name: Status
+    description: Liveness and readiness probes.
 paths:
   /status/livez:
     get:
       tags: [Status]
       summary: Check liveness of application.
+      description: Returns 200 while the process is running. It does not check any dependency.
       operationId: getLivez
       responses:
         "200":
@@ -22,6 +30,7 @@ paths:
     get:
       tags: [Status]
       summary: Check readiness of application.
+      description: Returns 200 when the application is ready to serve requests.
       operationId: getReadyz
       responses:
         "200":

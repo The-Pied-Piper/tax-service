@@ -1,0 +1,10 @@
+{
+  "name": "tax-service-spec-lint",
+  "private": true,
+  "description": "OpenAPI linter for openapi/openapi.yml; run with ./dev.sh lint-api",
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@aep_dev/aep-openapi-linter": "0.5.3",
+    "@stoplight/spectral-cli": "6.17.1"
+  }
+}

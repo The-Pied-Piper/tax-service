@@ -159,3 +159,6 @@ cython_debug/
 .idea/
 .vscode
 .devcontainer
+
+# Node (spec linter)
+service_scripts/spec-lint/node_modules/
