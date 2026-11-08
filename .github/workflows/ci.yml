@@ -18,9 +18,9 @@ jobs:
     # Same commands as local development, inside the same dev image.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Build the dev image with layer caching, tagged as compose names it
       # (<directory>-app) so `./dev.sh check` finds it and does not rebuild.
@@ -33,7 +33,7 @@ jobs:
           echo "gid=$(id -g)" >> "$GITHUB_OUTPUT"
 
       - name: Build dev image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: dev
@@ -56,13 +56,13 @@ jobs:
     # Only meaningful once `./dev.sh init` has produced app/; the template repo skips it.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build production image
         if: hashFiles('app/main.py') != ''
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: prod
