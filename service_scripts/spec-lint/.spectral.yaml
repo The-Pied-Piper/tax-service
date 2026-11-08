@@ -8,9 +8,9 @@ extends:
 overrides:
   # Status probes return one object, not a list, so the paging rules do not apply to them.
   - files:
-      - "openapi/openapi.yml#/paths/~1status~1livez"
-      - "openapi/openapi.yml#/paths/~1status~1readyz"
-      - "openapi/openapi.yml#/components/schemas/StatusOutput"
+      - "../../openapi/openapi.yml#/paths/~1status~1livez"
+      - "../../openapi/openapi.yml#/paths/~1status~1readyz"
+      - "../../openapi/openapi.yml#/components/schemas/StatusOutput"
     rules:
       aep-158-max-page-size-parameter: "off"
       aep-158-page-token-parameter: "off"

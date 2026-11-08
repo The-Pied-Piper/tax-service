@@ -161,4 +161,4 @@ cython_debug/
 .devcontainer
 
 # Node (spec linter)
-node_modules/
+service_scripts/spec-lint/node_modules/
