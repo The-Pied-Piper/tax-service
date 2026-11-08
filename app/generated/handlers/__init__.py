@@ -11,9 +11,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.adapters.inbound.status_adapter import StatusRequestAdapter
-from app.adapters.inbound.widgets_adapter import WidgetsRequestAdapter
 from app.generated.handlers.status import StatusHandlers
-from app.generated.handlers.widgets import WidgetsHandlers
 
 
 @dataclass(frozen=True)
@@ -21,17 +19,11 @@ class Adapters:
     """One inbound request adapter per spec tag; built in the composition root."""
 
     status: StatusRequestAdapter
-    widgets: WidgetsRequestAdapter
 
 
 def build_operations(adapters: Adapters) -> dict[str, Callable[..., Any]]:
     status_handlers = StatusHandlers(adapters.status)
-    widgets_handlers = WidgetsHandlers(adapters.widgets)
     return {
         "getLivez": status_handlers.get_livez,
         "getReadyz": status_handlers.get_readyz,
-        "listWidgets": widgets_handlers.list_widgets,
-        "createWidget": widgets_handlers.create_widget,
-        "getWidget": widgets_handlers.get_widget,
-        "deleteWidget": widgets_handlers.delete_widget,
     }

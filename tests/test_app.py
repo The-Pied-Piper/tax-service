@@ -19,7 +19,3 @@ def test_get_livez_is_wired(client: TestClient) -> None:
 
 def test_get_readyz_is_wired(client: TestClient) -> None:
     assert client.get(f"{BASE}/status/readyz").status_code in (200, 503)
-
-
-def test_list_widgets_is_wired(client: TestClient) -> None:
-    assert client.get(f"{BASE}/widgets").status_code in (200, 501)

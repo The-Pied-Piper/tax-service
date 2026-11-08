@@ -1,6 +1,6 @@
 # tax-service
 
-Widget Service — spec-first, hexagonal architecture, Connexion 3 (ASGI). Created from
+Tax Service — spec-first, hexagonal architecture, Connexion 3 (ASGI). Created from
 service-template (`https://github.com/The-Pied-Piper/service-template.git`); the generator lives
 in `tools/service_gen/` and is driven by `openapi/openapi.yml`.
 
@@ -75,7 +75,7 @@ Request flow: `Connexion -> generated handler -> request adapter -> port -> serv
 
 1. Add an ORM model subclassing `Base` under `app/adapters/outbound/db/` and
    import it in `db/__init__.py` so Alembic sees it.
-2. `./dev.sh revision "add widgets table"` then `./dev.sh migrate`.
+2. `./dev.sh revision "describe the change"` then `./dev.sh migrate`.
 3. Write a repository that takes the session factory, expose it via an outbound
    port (`application/ports/`), and hand it to the service in `build_adapters()`.
 

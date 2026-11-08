@@ -20,11 +20,9 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.adapters.inbound.status_adapter import StatusRequestAdapter
-from app.adapters.inbound.widgets_adapter import WidgetsRequestAdapter
 from app.adapters.outbound.db import DatabaseProbe, create_engine
 from app.application.ports.health import NotReadyError
 from app.application.services.status_service import StatusService
-from app.application.services.widgets_service import WidgetsService
 from app.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
 from app.generated.handlers import Adapters, build_operations
 from app.settings import Settings
@@ -49,7 +47,6 @@ def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     probes = [DatabaseProbe(engine)]
     return Adapters(
         status=StatusRequestAdapter(StatusService(probes)),
-        widgets=WidgetsRequestAdapter(WidgetsService()),
     )
 
 
