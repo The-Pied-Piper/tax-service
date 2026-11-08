@@ -56,7 +56,8 @@ tests/
 requirements.txt               runtime deps; requirements-dev.txt adds test/lint tooling
 Dockerfile                     `dev` target (tools, bind mount) and `prod` target (slim)
 compose.yaml                   app + postgres:16
-dev.sh, scripts/               dev.sh dispatches to scripts/<command>.sh
+dev.sh, scripts/               dev.sh dispatches to scripts/<command>.sh (template-owned)
+service_scripts/               your own commands, same shape; dev.sh runs <command>.sh from here if scripts/ has none
 tools/service_gen/             the code generator (template-owned; see Upgrading)
 .github/workflows/ci.yml       GitHub Actions: ./dev.sh check + prod image build (template-owned)
 ```
