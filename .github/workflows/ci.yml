@@ -33,7 +33,7 @@ jobs:
           echo "gid=$(id -g)" >> "$GITHUB_OUTPUT"
 
       - name: Build dev image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: dev
@@ -62,7 +62,7 @@ jobs:
 
       - name: Build production image
         if: hashFiles('app/main.py') != ''
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: prod
