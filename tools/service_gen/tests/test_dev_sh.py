@@ -180,3 +180,18 @@ def test_compose_mounts_the_agent_socket(env: dict[str, str], source: str) -> No
     agent = next(v for v in volumes if v["target"] == "/tmp/ssh-agent.sock")
     assert agent["source"] == source
     assert agent["bind"]["create_host_path"] is False
+
+
+@pytest.mark.skipif(not has_docker_compose(), reason="needs the docker CLI with compose")
+def test_compose_passes_the_github_token_through() -> None:
+    keep = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME")}
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=ROOT,
+        env={**keep, "GH_TOKEN": "t0ken"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert json.loads(result.stdout)["services"]["app"]["environment"]["GH_TOKEN"] == "t0ken"

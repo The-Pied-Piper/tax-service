@@ -8,7 +8,7 @@ COPY requirements.txt ./
 FROM base AS dev
 # Everyday tools for working inside the container (python:slim ships none of them).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git jq less make openssh-client procps vim-tiny \
+    && apt-get install -y --no-install-recommends ca-certificates curl gh git iputils-ping jq less make openssh-client postgresql-client procps unzip vim-tiny wget zip \
     && rm -rf /var/lib/apt/lists/*
 COPY requirements-dev.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements-dev.txt
