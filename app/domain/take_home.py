@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 CENTS = Decimal("0.01")
+DEFAULT_LANGUAGE_CODE = "en"
 # The largest salary the service accepts (product limit); anything at or above it is refused.
 SALARY_LIMIT = Decimal("1e15")
 

@@ -1,6 +1,6 @@
 """The tax-engine adapter on its own: real engine, no HTTP."""
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 import pytest
 
@@ -30,3 +30,16 @@ async def test_a_language_it_cannot_write_is_refused() -> None:
 async def test_an_engine_failure_becomes_the_ports_error() -> None:
     with pytest.raises(DeductionsUnavailableError):
         await TaxEngineDeductions().calculate("CA-ON", 2024, Decimal(70000), "en", False)
+
+
+async def test_an_arithmetic_failure_becomes_the_ports_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calculator = TaxEngineDeductions()
+
+    def overflow(*args: object) -> None:
+        raise InvalidOperation("too many digits")
+
+    monkeypatch.setattr(calculator, "_calculate", overflow)
+    with pytest.raises(DeductionsUnavailableError):
+        await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", False)

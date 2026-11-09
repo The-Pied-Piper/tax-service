@@ -10,6 +10,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.application.ports.take_home_calculations_port import TakeHomeCalculationsPort
+from app.domain.take_home import DEFAULT_LANGUAGE_CODE
 from app.domain.take_home import FormTrace as DomainFormTrace
 from app.generated.models import (
     ComputeTakeHomeCalculationRequest,
@@ -31,7 +32,9 @@ class TakeHomeCalculationsRequestAdapter:
             jurisdiction_code=body.jurisdiction_code,
             year=body.year,
             salary=Decimal(body.salary),
-            language_code="en" if body.language_code is None else body.language_code,
+            language_code=DEFAULT_LANGUAGE_CODE
+            if body.language_code is None
+            else body.language_code,
             include_trace=bool(body.include_trace),
         )
         return ComputeTakeHomeCalculationResponse(
