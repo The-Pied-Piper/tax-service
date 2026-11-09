@@ -91,18 +91,18 @@ name = "Inbound and outbound adapters never import each other"
 type = "independence"
 modules = ["app.adapters.inbound", "app.adapters.outbound"]
 
-# tax-service's own: only the tax-engine adapter knows tax-engine, and only an outbound adapter
-# knows how the engine is run (a thread) or the database.
+# tax-service's own: the domain and application know neither tax-engine nor how the engine is
+# run (a thread); inbound adapters know neither tax-engine, the database nor the settings.
 [[tool.importlinter.contracts]]
-id = "tax-engine-and-threads-outbound-only"
+id = "core-engine-and-threads-free"
 name = "Domain and application know neither tax-engine nor threads"
 type = "forbidden"
 source_modules = ["app.domain", "app.application"]
 forbidden_modules = ["tax_engine", "asyncio"]
 
 [[tool.importlinter.contracts]]
-id = "inbound-knows-no-engine-or-database"
-name = "Inbound adapters know neither tax-engine nor the database"
+id = "inbound-knows-no-engine-database-or-settings"
+name = "Inbound adapters know neither tax-engine, the database nor the settings"
 type = "forbidden"
 source_modules = ["app.adapters.inbound"]
-forbidden_modules = ["tax_engine", "sqlalchemy"]
+forbidden_modules = ["tax_engine", "sqlalchemy", "app.settings"]
