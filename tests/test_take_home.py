@@ -100,7 +100,10 @@ def test_jurisdictions_list(client: TestClient) -> None:
 
 
 def test_jurisdictions_rejects_a_page_token(client: TestClient) -> None:
-    assert client.get(f"{BASE}/jurisdictions", params={"page_token": "x"}).status_code == 400
+    response = client.get(f"{BASE}/jurisdictions", params={"page_token": "x"})
+    assert response.status_code == 400
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json()["field"] == "page_token"
 
 
 def test_a_failed_calculation_is_a_500_problem() -> None:
