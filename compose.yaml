@@ -30,13 +30,14 @@ services:
       APP_DATABASE_URL: postgresql+asyncpg://app:app@db:5432/app
     volumes:
       - .:/app
-      # The host's ssh agent socket (never your keys). scripts/_lib.sh sets
-      # SSH_AGENT_SOCKET for macOS and for DEV_SSH_AGENT=0; without a socket,
-      # an empty placeholder is mounted and ssh simply finds no agent.
+      # The host's ssh agent socket (never your keys), set by scripts/_lib.sh
+      # as SSH_AGENT_SOCKET. Without it (plain compose, a VS Code dev container,
+      # no agent, DEV_SSH_AGENT=0) an empty placeholder is mounted: VS Code
+      # forwards your agent itself, and nothing here can fail the start.
       # Long syntax: a colon in the path is harmless, and a stale path is an
       # error, not a root-owned directory created on your machine.
       - type: bind
-        source: ${SSH_AGENT_SOCKET:-${SSH_AUTH_SOCK:-/dev/null}}
+        source: ${SSH_AGENT_SOCKET:-/dev/null}
         target: /tmp/ssh-agent.sock
         bind:
           create_host_path: false
