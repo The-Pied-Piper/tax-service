@@ -24,8 +24,7 @@ from tax_engine.domain.worksheet import Worksheet
 from tax_engine.jurisdictions.ca.catalog.income import EMPLOYMENT_INCOME
 from tax_engine.registrations import artifact_kinds
 
-from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.errors import InvalidArgumentError
+from app.application.errors import DeductionsUnavailableError
 from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEntry
 
 ENGLISH = "en"
@@ -66,8 +65,8 @@ class TaxEngineDeductions:
         with_trace: bool,
     ) -> Deductions:
         if language_code != ENGLISH:
-            raise InvalidArgumentError(
-                "language_code", f"language_code {language_code} is not supported; use {ENGLISH}"
+            raise DeductionsUnavailableError(
+                f"{jurisdiction_code} {year}: no trace text in {language_code}"
             )
         try:
             return await asyncio.to_thread(
@@ -93,7 +92,9 @@ class TaxEngineDeductions:
         def figure(item: str) -> Decimal:
             form, kind = FIGURES[item]
             (sheet,) = sheets[form]
-            value: Decimal = sheet.get(self._kinds.kind(kind)).value
+            value = sheet.get(self._kinds.kind(kind)).value
+            if not isinstance(value, Decimal):
+                raise TypeError(f"{kind} is not a decimal")
             return value
 
         trace: list[FormTrace] = []

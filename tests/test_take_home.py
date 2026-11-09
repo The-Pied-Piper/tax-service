@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from app.application.ports.deductions import DeductionsUnavailableError
+from app.application.errors import DeductionsUnavailableError
 from app.domain.take_home import Deductions
 from app.main import create_app
 from app.settings import Settings
@@ -112,10 +112,11 @@ def test_a_failed_calculation_is_a_500_problem() -> None:
     response = compute(client)
     assert response.status_code == 500
     assert response.json()["title"] == "Calculation failed"
+    assert "KeyError" not in response.json()["detail"]
 
 
 def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> None:
-    # Checked in this order: salary, jurisdiction_code, year, then the language the engine writes.
+    # Checked in this order: salary, jurisdiction_code, year, then the language.
     assert compute(client, salary="0.00", year=2024).json()["field"] == "salary"
     assert (
         compute(client, jurisdiction_code="CA-AB", year=2024).json()["field"] == "jurisdiction_code"

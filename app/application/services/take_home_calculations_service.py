@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.application.ports.deductions import DeductionsCalculator, DeductionsUnavailableError
+from app.application.errors import DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsCalculator
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
-    CENTS,
-    SALARY_LIMIT,
     SupportedJurisdiction,
     SupportedYear,
     TakeHomeResult,
+    check_salary,
     find_jurisdiction,
 )
 
@@ -29,31 +29,27 @@ class TakeHomeCalculationsService:
         jurisdiction_code: str,
         year: int,
         salary: Decimal,
-        language_code: str,
+        language_code: str | None,
         include_trace: bool,
     ) -> TakeHomeResult:
-        if salary <= 0:
-            raise InvalidArgumentError("salary", "salary must be above 0")
-        if salary >= SALARY_LIMIT:
-            raise InvalidArgumentError("salary", "salary must be below 1,000,000,000,000,000")
+        check_salary(salary)
         jurisdiction, supported_year = _supported(jurisdiction_code, year)
+        language = _language(jurisdiction, language_code)
         deductions = await self._deductions.calculate(
             jurisdiction_code,
             year,
             salary,
-            language_code,
+            language,
             jurisdiction.deduction_items,
             include_trace,
         )
         if sorted(f.item for f in deductions.figures) != sorted(jurisdiction.deduction_items):
             raise DeductionsUnavailableError(f"{jurisdiction_code} {year}: wrong deduction items")
-        total = sum((f.amount for f in deductions.figures), Decimal(0))
-        return TakeHomeResult(
-            salary=salary.quantize(CENTS),
-            total_deductions=total.quantize(CENTS),
-            take_home=(salary - total).quantize(CENTS),
-            provisional=supported_year.provisional,
-            trace=deductions.trace if include_trace else None,
+        return TakeHomeResult.of(
+            salary,
+            deductions.figures,
+            supported_year.provisional,
+            deductions.trace if include_trace else None,
         )
 
 
@@ -70,3 +66,16 @@ def _supported(jurisdiction_code: str, year: int) -> tuple[SupportedJurisdiction
             "year", f"year {year} is not supported for {jurisdiction_code} yet"
         )
     return jurisdiction, supported
+
+
+def _language(jurisdiction: SupportedJurisdiction, language_code: str | None) -> str:
+    """The language asked for, or the default; rejects one the text cannot be written in."""
+    if language_code is None:
+        return jurisdiction.default_language
+    if language_code not in jurisdiction.languages:
+        raise InvalidArgumentError(
+            "language_code",
+            f"language_code {language_code} is not supported; use "
+            + " or ".join(jurisdiction.languages),
+        )
+    return language_code

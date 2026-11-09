@@ -6,12 +6,14 @@ Errors carry no HTTP knowledge; this inbound adapter owns the status codes and b
 
 from __future__ import annotations
 
+import logging
+
 from connexion import AsyncApp
 from connexion.lifecycle import ConnexionRequest, ConnexionResponse
 from connexion.problem import problem
 from pydantic import ValidationError as PydanticValidationError
 
-from app.application.ports.deductions import DeductionsUnavailableError
+from app.application.errors import DeductionsUnavailableError
 from app.application.ports.health import NotReadyError
 from app.domain.errors import (
     ConflictError,
@@ -20,6 +22,8 @@ from app.domain.errors import (
     NotFoundError,
     ValidationError,
 )
+
+logger = logging.getLogger(__name__)
 
 # Most specific first; DomainError is the fallback.
 _DOMAIN_ERROR_STATUS: dict[type[DomainError], int] = {
@@ -70,7 +74,11 @@ def _not_ready(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
 
 
 def _deductions_unavailable(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
-    return problem(status=500, title="Calculation failed", detail=str(exc))
+    """The cause is logged, not sent: it names engine internals the caller cannot act on."""
+    logger.error("deductions unavailable: %s", exc, exc_info=exc)
+    return problem(
+        status=500, title="Calculation failed", detail="The calculation could not be completed."
+    )
 
 
 def _not_implemented(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:

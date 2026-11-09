@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.ports.deductions import DeductionsUnavailableError
+from app.application.errors import DeductionsUnavailableError
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
@@ -52,9 +52,10 @@ async def compute(
     year: int = 2025,
     code: str = "CA-ON",
     trace: bool = False,
+    language: str | None = "en",
 ) -> TakeHomeResult:
     service = TakeHomeCalculationsService(fake)
-    return await service.compute_take_home_calculation(code, year, Decimal(salary), "en", trace)
+    return await service.compute_take_home_calculation(code, year, Decimal(salary), language, trace)
 
 
 async def test_take_home_is_salary_minus_the_sum_of_the_items() -> None:
@@ -124,3 +125,35 @@ async def test_refuses_what_is_not_supported_before_asking_for_deductions(
         await compute(fake, **kwargs)  # type: ignore[arg-type]
     assert error.value.field == field
     assert fake.calls == []
+
+
+async def test_a_negative_figure_is_summed_and_take_home_can_exceed_the_salary() -> None:
+    # Refundable credits can exceed the tax, so the income tax item is negative (made-up split).
+    fake = FakeDeductions(
+        [
+            ("cpp_base", "1000.00"),
+            ("cpp_enhanced", "100.00"),
+            ("cpp2", "0.00"),
+            ("ei", "300.00"),
+            ("income_tax", "-1565.16"),
+        ]
+    )
+    result = await compute(fake, salary="20000")
+    assert (result.total_deductions, result.take_home) == (Decimal("-165.16"), Decimal("20165.16"))
+
+
+async def test_an_unsupported_language_is_refused_naming_the_field() -> None:
+    with pytest.raises(InvalidArgumentError) as error:
+        await compute(FakeDeductions(), language="fr")
+    assert error.value.field == "language_code"
+
+
+async def test_no_language_asked_means_the_jurisdictions_default() -> None:
+    fake = FakeDeductions()
+    await compute(fake, language=None)
+    assert fake.calls[0][3] == "en"
+
+
+async def test_the_salary_limit_message_states_the_limit() -> None:
+    with pytest.raises(InvalidArgumentError, match="below 1,000,000,000,000,000"):
+        await compute(FakeDeductions(), salary="1000000000000000")

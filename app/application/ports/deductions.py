@@ -8,10 +8,6 @@ from typing import Protocol
 from app.domain.take_home import Deductions
 
 
-class DeductionsUnavailableError(Exception):
-    """The deductions could not be calculated. `main.py` maps this to HTTP 500."""
-
-
 class DeductionsCalculator(Protocol):
     async def calculate(
         self,
@@ -25,7 +21,6 @@ class DeductionsCalculator(Protocol):
         """What `salary` pays of each of `items`, with the explaining trace (empty unless
         `with_trace`). Returns exactly one figure for each requested item.
 
-        Raises InvalidArgumentError for a value the calculator cannot take, such as a language
-        it cannot write, and DeductionsUnavailableError when an item is unknown to it or the
+        Raises DeductionsUnavailableError when an item or the language is unknown to it or the
         calculation itself fails.
         """

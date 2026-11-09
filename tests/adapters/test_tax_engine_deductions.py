@@ -6,8 +6,7 @@ from typing import Any, NoReturn
 import pytest
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
-from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.errors import InvalidArgumentError
+from app.application.errors import DeductionsUnavailableError
 from app.domain.take_home import SUPPORTED_JURISDICTIONS
 
 ONTARIO_ITEMS = SUPPORTED_JURISDICTIONS[0].deduction_items  # CA-ON, the only jurisdiction
@@ -37,10 +36,9 @@ async def test_trace_lines_are_text_with_a_figure() -> None:
     assert all(line.text for form in deductions.trace for line in form.lines)
 
 
-async def test_a_language_it_cannot_write_is_refused() -> None:
-    with pytest.raises(InvalidArgumentError) as error:
+async def test_a_language_it_cannot_write_is_the_ports_error() -> None:
+    with pytest.raises(DeductionsUnavailableError):
         await calculate(TaxEngineDeductions(), language="fr")
-    assert error.value.field == "language_code"
 
 
 async def test_an_item_it_does_not_know_is_the_ports_error() -> None:

@@ -18,6 +18,6 @@ class TakeHomeCalculationsPort(Protocol):
         jurisdiction_code: str,
         year: int,
         salary: Decimal,
-        language_code: str,
+        language_code: str | None,
         include_trace: bool,
     ) -> TakeHomeResult: ...
