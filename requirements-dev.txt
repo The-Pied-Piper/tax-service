@@ -243,6 +243,7 @@ pyyaml==6.0.3
     #   connexion
     #   datamodel-code-generator
     #   jsonschema-path
+    #   tax-engine
     #   uvicorn
 referencing==0.37.0
     # via
@@ -281,6 +282,10 @@ swagger-ui-bundle==1.1.0
     # via
     #   -c requirements.txt
     #   connexion
+tax-engine @ git+https://github.com/The-Pied-Piper/tax-engine.git@63d98a6747110f3334036f11f77dd93dd6cf08d2
+    # via
+    #   -c requirements.txt
+    #   -r requirements.in
 typeguard==4.6.0
     # via
     #   -c tools/service_gen/requirements.txt

@@ -79,6 +79,7 @@ python-multipart==0.0.33
 pyyaml==6.0.3
     # via
     #   connexion
+    #   tax-engine
     #   uvicorn
 referencing==0.37.0
     # via
@@ -98,6 +99,8 @@ starlette==1.10.0
     # via connexion
 swagger-ui-bundle==1.1.0
     # via connexion
+tax-engine @ git+https://github.com/The-Pied-Piper/tax-engine.git@63d98a6747110f3334036f11f77dd93dd6cf08d2
+    # via -r requirements.in
 typing-extensions==4.16.0
     # via
     #   alembic

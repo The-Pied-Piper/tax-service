@@ -10,20 +10,30 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
 from app.adapters.inbound.status_adapter import StatusRequestAdapter
+from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
+from app.generated.handlers.jurisdictions import JurisdictionsHandlers
 from app.generated.handlers.status import StatusHandlers
+from app.generated.handlers.take_home_calculations import TakeHomeCalculationsHandlers
 
 
 @dataclass(frozen=True)
 class Adapters:
     """One inbound request adapter per spec tag; built in the composition root."""
 
+    jurisdictions: JurisdictionsRequestAdapter
     status: StatusRequestAdapter
+    take_home_calculations: TakeHomeCalculationsRequestAdapter
 
 
 def build_operations(adapters: Adapters) -> dict[str, Callable[..., Any]]:
+    jurisdictions_handlers = JurisdictionsHandlers(adapters.jurisdictions)
     status_handlers = StatusHandlers(adapters.status)
+    take_home_calculations_handlers = TakeHomeCalculationsHandlers(adapters.take_home_calculations)
     return {
+        "listJurisdictions": jurisdictions_handlers.list_jurisdictions,
         "getLivez": status_handlers.get_livez,
         "getReadyz": status_handlers.get_readyz,
+        "computeTakeHomeCalculation": take_home_calculations_handlers.compute_take_home_calculation,
     }

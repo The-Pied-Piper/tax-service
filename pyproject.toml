@@ -3,7 +3,8 @@
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["migrations/versions", "tools/service_gen/templates"]
+# app/generated is the generator's output; ./dev.sh check fails if it differs from a fresh sync.
+extend-exclude = ["migrations/versions", "tools/service_gen/templates", "app/generated"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -23,6 +24,11 @@ exclude = ["migrations/versions", "tools/service_gen/templates"]
 [[tool.mypy.overrides]]
 module = ["connexion.*", "asyncpg.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# tax-engine does not ship a py.typed marker yet.
+module = ["tax_engine.*"]
+follow_untyped_imports = true
 
 [[tool.mypy.overrides]]
 module = ["datamodel_code_generator.*"]
@@ -93,3 +99,19 @@ source_modules = ["app.main"]
 forbidden_modules = ["pydantic", "pydantic_core", "app.domain.errors"]
 # Direct imports only: main reaches these through the adapters it registers.
 allow_indirect_imports = true
+
+# tax-service's own: the domain and application know neither tax-engine nor how the engine is
+# run (a thread); inbound adapters know neither tax-engine, the database nor the settings.
+[[tool.importlinter.contracts]]
+id = "core-engine-and-threads-free"
+name = "Domain and application know neither tax-engine nor threads"
+type = "forbidden"
+source_modules = ["app.domain", "app.application"]
+forbidden_modules = ["tax_engine", "asyncio"]
+
+[[tool.importlinter.contracts]]
+id = "inbound-knows-no-engine-database-or-settings"
+name = "Inbound adapters know neither tax-engine, the database nor the settings"
+type = "forbidden"
+source_modules = ["app.adapters.inbound"]
+forbidden_modules = ["tax_engine", "sqlalchemy", "app.settings"]
