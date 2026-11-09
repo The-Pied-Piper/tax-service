@@ -8,6 +8,10 @@ from typing import Protocol
 from app.domain.take_home import Deductions
 
 
+class DeductionsUnavailableError(Exception):
+    """The deductions could not be calculated."""
+
+
 class DeductionsCalculator(Protocol):
     async def calculate(
         self,

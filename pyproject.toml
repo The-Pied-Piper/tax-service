@@ -7,7 +7,9 @@ target-version = "py312"
 extend-exclude = ["migrations/versions", "tools/service_gen/templates", "app/generated"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# INP001: a folder under app/ without __init__.py is invisible to the layer rules below
+# (the per-file ignores keep it to app/ and the repo's own folders).
+select = ["E", "F", "I", "UP", "B", "INP001"]
 
 [tool.ruff.lint.isort]
 # Stable import ordering whether or not app/ exists yet (it is created by init).
@@ -15,6 +17,10 @@ known-first-party = ["app", "tools"]
 
 [tool.ruff.lint.per-file-ignores]
 "app/generated/models.py" = ["E501"]
+"migrations/**" = ["INP001"]
+"tests/**" = ["INP001"]
+"service_scripts/**" = ["INP001"]
+"openapi/**" = ["INP001"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -26,13 +32,13 @@ module = ["connexion.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["datamodel_code_generator.*"]
+implicit_reexport = true
+
+[[tool.mypy.overrides]]
 # tax-engine does not ship a py.typed marker yet.
 module = ["tax_engine.*"]
 follow_untyped_imports = true
-
-[[tool.mypy.overrides]]
-module = ["datamodel_code_generator.*"]
-implicit_reexport = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -71,6 +77,11 @@ forbidden_modules = [
     "pydantic_core",
     "pydantic_settings",
     "sqlalchemy",
+    "asyncpg",
+    "alembic",
+    "httpx",
+    "fastapi",
+    "jsonschema",
     "starlette",
     "app.generated",
     "app.settings",
@@ -81,37 +92,109 @@ id = "outbound-wire-free"
 name = "Outbound adapters import no web framework or wire model directly"
 type = "forbidden"
 source_modules = ["app.adapters.outbound"]
-forbidden_modules = ["connexion", "pydantic", "starlette", "app.generated"]
+forbidden_modules = [
+    "connexion",
+    "fastapi",
+    "jsonschema",
+    "pydantic",
+    "starlette",
+    "app.generated",
+]
+# httpx is allowed here: an outbound adapter is where a client for another service lives.
 # Direct imports only: an outbound adapter may import app.settings, which uses pydantic_settings.
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-id = "adapters-independent"
-name = "Inbound and outbound adapters never import each other"
-type = "independence"
-modules = ["app.adapters.inbound", "app.adapters.outbound"]
+id = "adapters-sides"
+name = "Every adapter is inbound or outbound, and the two sides never import each other"
+type = "layers"
+containers = ["app.adapters"]
+layers = ["inbound | outbound"]
+exhaustive = true
 
 [[tool.importlinter.contracts]]
-id = "main-does-not-translate-errors"
-name = "Composition root imports no error type or validation library, so it cannot map errors itself"
+id = "adapters-depend-on-ports-only"
+name = "Adapters import ports, never services (only the composition root knows services)"
 type = "forbidden"
-source_modules = ["app.main"]
-forbidden_modules = ["pydantic", "pydantic_core", "app.domain.errors"]
-# Direct imports only: main reaches these through the adapters it registers.
+source_modules = ["app.adapters", "app.generated"]
+forbidden_modules = ["app.application.services"]
+
+[[tool.importlinter.contracts]]
+id = "application-sublayers"
+name = "Inside the application, services depend on ports, never the reverse"
+type = "layers"
+containers = ["app.application"]
+layers = ["services", "ports"]
+exhaustive = true
+
+[[tool.importlinter.contracts]]
+id = "generated-is-wire-only"
+name = "Generated code does not reach the application, domain, outbound adapters, settings or main"
+type = "forbidden"
+source_modules = ["app.generated"]
+forbidden_modules = [
+    "app.application",
+    "app.domain",
+    "app.adapters.outbound",
+    "app.settings",
+    "app.main",
+]
+# Direct imports only: handlers reach the application through the inbound adapter they call.
 allow_indirect_imports = true
 
-# tax-service's own: the domain and application know neither tax-engine nor how the engine is
-# run (a thread); inbound adapters know neither tax-engine, the database nor the settings.
 [[tool.importlinter.contracts]]
-id = "core-engine-and-threads-free"
-name = "Domain and application know neither tax-engine nor threads"
+id = "settings-is-a-leaf"
+name = "Settings import nothing from the app"
 type = "forbidden"
-source_modules = ["app.domain", "app.application"]
-forbidden_modules = ["tax_engine", "asyncio"]
+source_modules = ["app.settings"]
+forbidden_modules = [
+    "app.domain",
+    "app.application",
+    "app.adapters",
+    "app.generated",
+    "app.main",
+]
 
 [[tool.importlinter.contracts]]
-id = "inbound-knows-no-engine-database-or-settings"
-name = "Inbound adapters know neither tax-engine, the database nor the settings"
+id = "inbound-no-persistence"
+name = "Inbound adapters never touch the database stack or settings"
 type = "forbidden"
 source_modules = ["app.adapters.inbound"]
-forbidden_modules = ["tax_engine", "sqlalchemy", "app.settings"]
+forbidden_modules = ["sqlalchemy", "asyncpg", "alembic", "app.settings"]
+
+[[tool.importlinter.contracts]]
+id = "main-wires-concretes-only"
+name = "Composition root imports concretes only: no port, domain module, DTO or validation library"
+type = "forbidden"
+source_modules = ["app.main"]
+forbidden_modules = [
+    "pydantic",
+    "pydantic_core",
+    "app.domain",
+    "app.application.ports",
+    "app.generated.models",
+]
+# Direct imports only: main reaches these through the adapters and services it wires.
+allow_indirect_imports = true
+
+# tax-service's own: the domain and application do not know how work is scheduled (threads,
+# processes, an event-loop library); no module imports tax-engine except the tax-engine adapter.
+[[tool.importlinter.contracts]]
+id = "core-does-not-schedule-work"
+name = "Domain and application do not know how work is scheduled"
+type = "forbidden"
+source_modules = ["app.domain", "app.application"]
+forbidden_modules = ["asyncio", "threading", "concurrent", "multiprocessing", "subprocess", "anyio"]
+
+[[tool.importlinter.contracts]]
+id = "only-the-engine-adapter-imports-tax-engine"
+name = "Only the tax-engine adapter imports tax-engine"
+type = "forbidden"
+source_modules = ["app"]
+forbidden_modules = ["tax_engine"]
+ignore_imports = [
+    "app.adapters.outbound.tax_engine -> tax_engine",
+    "app.adapters.outbound.tax_engine.** -> tax_engine",
+]
+# A freshly scaffolded project has no tax-engine adapter, so the ignore may match nothing.
+unmatched_ignore_imports_alerting = "none"

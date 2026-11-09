@@ -37,6 +37,8 @@ def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     and are passed into the services they back.
     """
 {% if spec.has_health_tag %}
+    # The layer rules keep ports out of main, so for more probes pass them inline or as a
+    # tuple; a `list[ReadinessProbe]` annotation would import the port.
     probes = [DatabaseProbe(engine)]
 {% endif %}
     return Adapters(

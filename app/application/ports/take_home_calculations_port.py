@@ -20,4 +20,7 @@ class TakeHomeCalculationsPort(Protocol):
         salary: Decimal,
         language_code: str | None,
         include_trace: bool,
-    ) -> TakeHomeResult: ...
+    ) -> TakeHomeResult:
+        """Raises InvalidArgumentError for a request value the service does not support, and
+        DeductionsUnavailableError when the deductions cannot be calculated."""
+        ...

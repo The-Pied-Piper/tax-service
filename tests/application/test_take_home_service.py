@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.errors import DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsUnavailableError
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (

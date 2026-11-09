@@ -7,7 +7,7 @@ adapters (databases, clients) here, never inside the domain or application layer
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -22,7 +22,6 @@ from app.adapters.inbound.status_adapter import StatusRequestAdapter
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
 from app.adapters.outbound.db import DatabaseProbe, create_engine
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
-from app.application.ports.deductions import DeductionsCalculator
 from app.application.services.jurisdictions_service import JurisdictionsService
 from app.application.services.status_service import StatusService
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
@@ -32,9 +31,7 @@ from app.settings import Settings
 SPEC_PATH = Path(__file__).resolve().parent.parent / "openapi" / "openapi.yml"
 
 
-def build_adapters(
-    settings: Settings, engine: AsyncEngine, deductions: DeductionsCalculator | None = None
-) -> Adapters:
+def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     """Construct outbound adapters -> services -> inbound request adapters.
 
     Repositories take a session factory from `create_session_factory(engine)`
@@ -45,14 +42,16 @@ def build_adapters(
         jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
         status=StatusRequestAdapter(StatusService(probes)),
         take_home_calculations=TakeHomeCalculationsRequestAdapter(
-            TakeHomeCalculationsService(TaxEngineDeductions() if deductions is None else deductions)
+            TakeHomeCalculationsService(TaxEngineDeductions())
         ),
     )
 
 
 def create_app(
-    settings: Settings | None = None, deductions: DeductionsCalculator | None = None
+    settings: Settings | None = None,
+    build: Callable[[Settings, AsyncEngine], Adapters] = build_adapters,
 ) -> AsyncApp:
+    """The ASGI app; `build` replaces the wiring of `build_adapters` (a test seam)."""
     settings = settings or Settings()
     logging.basicConfig(level=settings.log_level)
     engine = create_engine(settings)
@@ -62,7 +61,7 @@ def create_app(
         yield
         await engine.dispose()
 
-    operations = build_operations(build_adapters(settings, engine, deductions))
+    operations = build_operations(build(settings, engine))
     app = AsyncApp(__name__, lifespan=lifespan)
     app.add_api(
         SPEC_PATH,
