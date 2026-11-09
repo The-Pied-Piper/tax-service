@@ -14,6 +14,7 @@ from app.domain.take_home import (
     CENTS,
     SALARY_LIMIT,
     SupportedJurisdiction,
+    SupportedYear,
     TakeHomeResult,
     find_jurisdiction,
 )
@@ -35,7 +36,7 @@ class TakeHomeCalculationsService:
             raise InvalidArgumentError("salary", "salary must be above 0")
         if salary >= SALARY_LIMIT:
             raise InvalidArgumentError("salary", "salary must be below 1,000,000,000,000,000")
-        jurisdiction = _supported(jurisdiction_code, year)
+        jurisdiction, supported_year = _supported(jurisdiction_code, year)
         deductions = await self._deductions.calculate(
             jurisdiction_code,
             year,
@@ -51,26 +52,21 @@ class TakeHomeCalculationsService:
             salary=salary.quantize(CENTS),
             total_deductions=total.quantize(CENTS),
             take_home=(salary - total).quantize(CENTS),
-            provisional=_provisional(jurisdiction, year),
+            provisional=supported_year.provisional,
             trace=deductions.trace if include_trace else None,
         )
 
 
-def _supported(jurisdiction_code: str, year: int) -> SupportedJurisdiction:
-    """The supported jurisdiction; rejects an unsupported jurisdiction or year."""
+def _supported(jurisdiction_code: str, year: int) -> tuple[SupportedJurisdiction, SupportedYear]:
+    """The supported jurisdiction and year; rejects an unsupported jurisdiction or year."""
     jurisdiction = find_jurisdiction(jurisdiction_code)
     if jurisdiction is None:
         raise InvalidArgumentError(
             "jurisdiction_code", f"jurisdiction_code {jurisdiction_code} is not supported yet"
         )
-    if jurisdiction.year(year) is None:
+    supported = jurisdiction.year(year)
+    if supported is None:
         raise InvalidArgumentError(
             "year", f"year {year} is not supported for {jurisdiction_code} yet"
         )
-    return jurisdiction
-
-
-def _provisional(jurisdiction: SupportedJurisdiction, year: int) -> bool:
-    supported = jurisdiction.year(year)
-    assert supported is not None
-    return supported.provisional
+    return jurisdiction, supported

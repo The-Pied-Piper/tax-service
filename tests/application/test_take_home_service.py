@@ -28,8 +28,8 @@ FIGURES = {
 
 
 class FakeDeductions:
-    def __init__(self, figures: dict[str, str] | None = None) -> None:
-        self.figures = FIGURES if figures is None else figures
+    def __init__(self, figures: list[tuple[str, str]] | None = None) -> None:
+        self.figures = list(FIGURES.items()) if figures is None else figures
         self.calls: list[tuple[str, int, Decimal, str, tuple[str, ...], bool]] = []
 
     async def calculate(
@@ -42,7 +42,7 @@ class FakeDeductions:
         with_trace: bool,
     ) -> Deductions:
         self.calls.append((jurisdiction_code, year, salary, language_code, items, with_trace))
-        figures = tuple(DeductionFigure(item, Decimal(self.figures[item])) for item in self.figures)
+        figures = tuple(DeductionFigure(item, Decimal(amount)) for item, amount in self.figures)
         return Deductions(figures, TRACE if with_trace else ())
 
 
@@ -74,9 +74,25 @@ async def test_it_asks_for_the_items_the_jurisdiction_declares() -> None:
     assert fake.calls[0][4] == jurisdiction.deduction_items
 
 
-async def test_a_calculator_that_answers_for_other_items_is_an_error() -> None:
+@pytest.mark.parametrize(
+    "answer",
+    [
+        [("ei", "1077.48")],  # items missing
+        [*FIGURES.items(), ("extra", "1.00")],  # an item nobody asked for
+        [*FIGURES.items(), ("ei", "1077.48")],  # an item twice
+        [(item, "1.00") for item in [*FIGURES][:-1]] + [("ei", "1.00")],  # one twice, one gone
+    ],
+)
+async def test_a_calculator_that_answers_for_other_items_is_an_error(
+    answer: list[tuple[str, str]],
+) -> None:
     with pytest.raises(DeductionsUnavailableError):
-        await compute(FakeDeductions({"ei": "1077.48"}))
+        await compute(FakeDeductions(answer))
+
+
+async def test_the_items_may_come_back_in_any_order() -> None:
+    result = await compute(FakeDeductions(list(reversed(FIGURES.items()))))
+    assert result.total_deductions == Decimal("16531.32")
 
 
 async def test_provisional_follows_the_supported_year() -> None:

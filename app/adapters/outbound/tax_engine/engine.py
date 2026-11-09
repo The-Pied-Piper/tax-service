@@ -11,14 +11,16 @@ translated into the port's own errors.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
+from typing import Protocol
 
 from tax_engine import build_tax_computation
 from tax_engine.adapters.inbound.trace_english import EnglishTraceRenderer
-from tax_engine.application.services.tax_computation import TaxComputationService
 from tax_engine.domain.artifact import Artifact
 from tax_engine.domain.errors import DomainError as EngineError
 from tax_engine.domain.jurisdiction_code import JurisdictionCode
+from tax_engine.domain.worksheet import Worksheet
 from tax_engine.jurisdictions.ca.catalog.income import EMPLOYMENT_INCOME
 from tax_engine.registrations import artifact_kinds
 
@@ -38,10 +40,18 @@ FIGURES = {
 }
 
 
+class Engine(Protocol):
+    """The part of tax-engine's computation service this adapter uses."""
+
+    def compute(
+        self, code: JurisdictionCode, tax_year: int, *inputs: Artifact[Decimal]
+    ) -> Mapping[str, Sequence[Worksheet]]: ...
+
+
 class TaxEngineDeductions:
     """Implements DeductionsCalculator with tax-engine; only English text is available."""
 
-    def __init__(self, engine: TaxComputationService | None = None) -> None:
+    def __init__(self, engine: Engine | None = None) -> None:
         self._engine = build_tax_computation() if engine is None else engine
         self._kinds = artifact_kinds()
         self._renderer = EnglishTraceRenderer()
@@ -59,9 +69,6 @@ class TaxEngineDeductions:
             raise InvalidArgumentError(
                 "language_code", f"language_code {language_code} is not supported; use {ENGLISH}"
             )
-        unknown = [item for item in items if item not in FIGURES]
-        if unknown:
-            raise DeductionsUnavailableError(f"unknown deduction items: {', '.join(unknown)}")
         try:
             return await asyncio.to_thread(
                 self._calculate, jurisdiction_code, year, salary, items, with_trace

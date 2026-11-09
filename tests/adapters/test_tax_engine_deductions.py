@@ -1,7 +1,7 @@
 """The tax-engine adapter on its own: no HTTP; the real engine, or a fake one that fails."""
 
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -10,7 +10,9 @@ from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import find_jurisdiction
 
-ONTARIO_ITEMS = find_jurisdiction("CA-ON").deduction_items  # type: ignore[union-attr]
+ONTARIO = find_jurisdiction("CA-ON")
+assert ONTARIO is not None
+ONTARIO_ITEMS = ONTARIO.deduction_items
 
 
 async def calculate(
@@ -59,7 +61,7 @@ class FailingEngine:
     def __init__(self, error: Exception) -> None:
         self._error = error
 
-    def compute(self, *args: object) -> None:
+    def compute(self, *args: object) -> NoReturn:
         raise self._error
 
 
@@ -73,6 +75,6 @@ class FailingEngine:
     ],
 )
 async def test_other_engine_failures_become_the_ports_error(error: Exception) -> None:
-    calculator = TaxEngineDeductions(FailingEngine(error))  # type: ignore[arg-type]
+    calculator = TaxEngineDeductions(FailingEngine(error))
     with pytest.raises(DeductionsUnavailableError):
         await calculate(calculator)
