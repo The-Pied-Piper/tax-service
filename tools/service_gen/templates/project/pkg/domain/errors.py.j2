@@ -1,6 +1,6 @@
 """Errors raised by the domain and application layers.
 
-They carry no HTTP knowledge: the inbound HTTP adapter translates them into responses.
+They carry no transport knowledge: the inbound adapter translates them into responses.
 """
 
 

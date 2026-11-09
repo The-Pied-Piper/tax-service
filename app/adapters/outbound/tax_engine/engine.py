@@ -24,7 +24,7 @@ from tax_engine.domain.worksheet import Worksheet
 from tax_engine.jurisdictions.ca.catalog.income import EMPLOYMENT_INCOME
 from tax_engine.registrations import artifact_kinds
 
-from app.application.errors import DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEntry
 
 ENGLISH = "en"

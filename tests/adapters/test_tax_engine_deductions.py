@@ -6,7 +6,7 @@ from typing import Any, NoReturn
 import pytest
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
-from app.application.errors import DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.take_home import SUPPORTED_JURISDICTIONS
 
 ONTARIO_ITEMS = SUPPORTED_JURISDICTIONS[0].deduction_items  # CA-ON, the only jurisdiction

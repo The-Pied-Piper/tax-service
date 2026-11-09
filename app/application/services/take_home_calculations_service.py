@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.application.errors import DeductionsUnavailableError
-from app.application.ports.deductions import DeductionsCalculator
+from app.application.ports.deductions import DeductionsCalculator, DeductionsUnavailableError
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
     SupportedJurisdiction,

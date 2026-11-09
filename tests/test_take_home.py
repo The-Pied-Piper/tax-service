@@ -5,8 +5,15 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from app.application.errors import DeductionsUnavailableError
+from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
+from app.adapters.inbound.status_adapter import StatusRequestAdapter
+from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
+from app.application.ports.deductions import DeductionsUnavailableError
+from app.application.services.jurisdictions_service import JurisdictionsService
+from app.application.services.status_service import StatusService
+from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.take_home import Deductions
+from app.generated.handlers import Adapters
 from app.main import create_app
 from app.settings import Settings
 
@@ -111,7 +118,14 @@ def test_a_failed_calculation_is_a_500_problem() -> None:
         async def calculate(self, *args: Any) -> Deductions:
             raise DeductionsUnavailableError("CA-ON 2025: KeyError")
 
-    client = create_app(Settings(), deductions=Failing()).test_client()
+    adapters = Adapters(
+        jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
+        status=StatusRequestAdapter(StatusService([])),
+        take_home_calculations=TakeHomeCalculationsRequestAdapter(
+            TakeHomeCalculationsService(Failing())
+        ),
+    )
+    client = create_app(Settings(), adapters).test_client()
     response = compute(client)
     assert response.status_code == 500
     assert response.json()["title"] == "Calculation failed"

@@ -14,7 +14,7 @@ from connexion.problem import problem
 from pydantic import ValidationError as PydanticValidationError
 
 from app.adapters.inbound.invalid_request import InvalidRequestError
-from app.application.errors import DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsUnavailableError
 from app.application.ports.health import NotReadyError
 from app.domain.errors import (
     ConflictError,
