@@ -13,6 +13,7 @@ from connexion.lifecycle import ConnexionRequest, ConnexionResponse
 from connexion.problem import problem
 from pydantic import ValidationError as PydanticValidationError
 
+from app.adapters.inbound.invalid_request import InvalidRequestError
 from app.application.errors import DeductionsUnavailableError
 from app.application.ports.health import NotReadyError
 from app.domain.errors import (
@@ -36,6 +37,7 @@ _DOMAIN_ERROR_STATUS: dict[type[DomainError], int] = {
 
 def register_error_handlers(app: AsyncApp) -> None:
     app.add_error_handler(InvalidArgumentError, _invalid_argument)
+    app.add_error_handler(InvalidRequestError, _invalid_argument)
     app.add_error_handler(DomainError, _domain_error)
     app.add_error_handler(PydanticValidationError, _bad_request)
     app.add_error_handler(NotReadyError, _not_ready)
@@ -45,7 +47,7 @@ def register_error_handlers(app: AsyncApp) -> None:
 
 def _invalid_argument(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
     """A request value is invalid or unsupported: 400 naming the field (RFC 9457, AIP-193)."""
-    assert isinstance(exc, InvalidArgumentError)
+    assert isinstance(exc, InvalidArgumentError | InvalidRequestError)
     return problem(
         status=400,
         title="Invalid argument",

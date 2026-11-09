@@ -31,7 +31,7 @@ class TakeHomeCalculationsRequestAdapter:
             jurisdiction_code=body.jurisdiction_code,
             year=body.year,
             salary=Decimal(body.salary),
-            language_code=body.language_code,
+            language_code=body.language_code if "language_code" in body.model_fields_set else None,
             include_trace=bool(body.include_trace),
         )
         response = ComputeTakeHomeCalculationResponse(

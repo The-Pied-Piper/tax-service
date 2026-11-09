@@ -7,8 +7,8 @@ yours: `service-gen sync` never overwrites it.
 
 from __future__ import annotations
 
+from app.adapters.inbound.invalid_request import InvalidRequestError
 from app.application.ports.jurisdictions_port import JurisdictionsPort
-from app.domain.errors import InvalidArgumentError
 from app.generated.models import Jurisdiction, JurisdictionYear, ListJurisdictionsResponse
 
 
@@ -24,7 +24,7 @@ class JurisdictionsRequestAdapter:
         # The whole list is one page (max_page_size is only an upper bound), so no page token
         # of ours exists to be asked for.
         if page_token:
-            raise InvalidArgumentError("page_token", "page_token is not a token of this list")
+            raise InvalidRequestError("page_token", "page_token is not a token of this list")
         result = await self._service.list_jurisdictions()
         return ListJurisdictionsResponse(
             jurisdictions=[

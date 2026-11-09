@@ -157,3 +157,10 @@ async def test_no_language_asked_means_the_jurisdictions_default() -> None:
 async def test_the_salary_limit_message_states_the_limit() -> None:
     with pytest.raises(InvalidArgumentError, match="below 1,000,000,000,000,000"):
         await compute(FakeDeductions(), salary="1000000000000000")
+
+
+@pytest.mark.parametrize("salary", ["NaN", "Infinity", "-Infinity", "70000.001", "1e30"])
+async def test_a_salary_that_is_not_plain_cents_below_the_limit_is_refused(salary: str) -> None:
+    with pytest.raises(InvalidArgumentError) as error:
+        await compute(FakeDeductions(), salary=salary)
+    assert error.value.field == "salary"

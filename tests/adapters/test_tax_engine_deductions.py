@@ -74,3 +74,20 @@ async def test_other_engine_failures_become_the_ports_error(error: Exception) ->
     calculator = TaxEngineDeductions(FailingEngine(error))
     with pytest.raises(DeductionsUnavailableError):
         await calculate(calculator)
+
+
+async def test_every_supported_jurisdiction_year_and_language_works_with_the_real_engine() -> None:
+    # The domain lists what is on offer; this keeps that list and the adapter in step.
+    calculator = TaxEngineDeductions()
+    for jurisdiction in SUPPORTED_JURISDICTIONS:
+        for supported in jurisdiction.years:
+            for language in jurisdiction.languages:
+                deductions = await calculator.calculate(
+                    jurisdiction.code,
+                    supported.year,
+                    Decimal(70000),
+                    language,
+                    jurisdiction.deduction_items,
+                    False,
+                )
+                assert [f.item for f in deductions.figures] == list(jurisdiction.deduction_items)

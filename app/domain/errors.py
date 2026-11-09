@@ -1,4 +1,4 @@
-"""Errors raised by the domain and application layers.
+"""Errors raised for business-rule violations.
 
 They carry no transport knowledge: the inbound adapter translates them into responses.
 """

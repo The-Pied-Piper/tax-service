@@ -13,11 +13,15 @@ SALARY_LIMIT = Decimal("1e15")
 
 
 def check_salary(salary: Decimal) -> None:
-    """Refuses a salary that is not above 0 or is at or above `SALARY_LIMIT`."""
+    """Refuses a salary that is not a number, not above 0, finer than cents or at the limit."""
+    if not salary.is_finite():
+        raise InvalidArgumentError("salary", "salary must be a number")
     if salary <= 0:
         raise InvalidArgumentError("salary", "salary must be above 0")
     if salary >= SALARY_LIMIT:
         raise InvalidArgumentError("salary", f"salary must be below {SALARY_LIMIT:,.0f}")
+    if salary != salary.quantize(CENTS):
+        raise InvalidArgumentError("salary", "salary must have at most two decimal places")
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,10 @@ class TraceEntry:
 
 @dataclass(frozen=True)
 class FormTrace:
+    """The steps of one form. `form` and each entry's `label` are the calculator's own
+    identifiers, passed through unchanged and opaque to this service: they are not translated,
+    so a calculator that renames one changes what callers see."""
+
     form: str
     lines: tuple[TraceEntry, ...]
 
@@ -96,7 +104,7 @@ class SupportedJurisdiction:
     # What "total deductions" means here: the sum of exactly these items.
     deduction_items: tuple[str, ...]
     # The languages the text can be written in; the first is used when none is asked for.
-    languages: tuple[str, ...] = ("en",)
+    languages: tuple[str, ...]
 
     @property
     def default_language(self) -> str:
@@ -112,6 +120,7 @@ SUPPORTED_JURISDICTIONS = (
         "CA-ON",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
         deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
+        languages=("en",),
     ),
 )
 
