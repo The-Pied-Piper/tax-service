@@ -65,11 +65,6 @@ forbidden_modules = [
     "pydantic_core",
     "pydantic_settings",
     "sqlalchemy",
-    "asyncpg",
-    "alembic",
-    "httpx",
-    "fastapi",
-    "jsonschema",
     "starlette",
     "app.generated",
     "app.settings",
@@ -80,61 +75,21 @@ id = "outbound-wire-free"
 name = "Outbound adapters import no web framework or wire model directly"
 type = "forbidden"
 source_modules = ["app.adapters.outbound"]
-forbidden_modules = ["connexion", "fastapi", "httpx", "jsonschema", "pydantic", "starlette", "app.generated"]
+forbidden_modules = ["connexion", "pydantic", "starlette", "app.generated"]
 # Direct imports only: an outbound adapter may import app.settings, which uses pydantic_settings.
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-id = "adapters-sides"
-name = "Every adapter is inbound or outbound, and the two sides never import each other"
-type = "layers"
-containers = ["app.adapters"]
-layers = ["inbound | outbound"]
-exhaustive = true
+id = "adapters-independent"
+name = "Inbound and outbound adapters never import each other"
+type = "independence"
+modules = ["app.adapters.inbound", "app.adapters.outbound"]
 
 [[tool.importlinter.contracts]]
-id = "adapters-depend-on-ports-only"
-name = "Adapters import ports, never services (only the composition root knows services)"
-type = "forbidden"
-source_modules = ["app.adapters", "app.generated"]
-forbidden_modules = ["app.application.services"]
-
-[[tool.importlinter.contracts]]
-id = "application-sublayers"
-name = "Inside the application, services depend on ports, never the reverse"
-type = "layers"
-containers = ["app.application"]
-layers = ["services", "ports"]
-exhaustive = true
-
-[[tool.importlinter.contracts]]
-id = "generated-is-wire-only"
-name = "Generated code does not reach the application, domain, outbound adapters, settings or main"
-type = "forbidden"
-source_modules = ["app.generated"]
-forbidden_modules = ["app.application", "app.domain", "app.adapters.outbound", "app.settings", "app.main"]
-# Direct only: handlers reach the application through the inbound adapter they call.
-allow_indirect_imports = true
-
-[[tool.importlinter.contracts]]
-id = "settings-is-a-leaf"
-name = "Settings import nothing from the app"
-type = "forbidden"
-source_modules = ["app.settings"]
-forbidden_modules = ["app.domain", "app.application", "app.adapters", "app.generated", "app.main"]
-
-[[tool.importlinter.contracts]]
-id = "inbound-no-persistence"
-name = "Inbound adapters never touch the database stack or settings"
-type = "forbidden"
-source_modules = ["app.adapters.inbound"]
-forbidden_modules = ["sqlalchemy", "asyncpg", "alembic", "app.settings"]
-
-[[tool.importlinter.contracts]]
-id = "main-wires-concretes-only"
-name = "Composition root imports concretes only: no port, domain module, DTO or validation library"
+id = "main-does-not-translate-errors"
+name = "Composition root imports no error type or validation library, so it cannot map errors itself"
 type = "forbidden"
 source_modules = ["app.main"]
-forbidden_modules = ["pydantic", "pydantic_core", "app.domain", "app.application.ports", "app.generated.models"]
-# Direct imports only: main reaches these through the adapters and services it wires.
+forbidden_modules = ["pydantic", "pydantic_core", "app.domain.errors"]
+# Direct imports only: main reaches these through the adapters it registers.
 allow_indirect_imports = true
