@@ -89,8 +89,9 @@ failures; `app/adapters/inbound/http_errors.py` maps them to RFC 7807 problem re
 A tag whose operations are all named like liveness/readiness probes (`livez`,
 `healthz`, `readyz`, `ready`, ... with or without a `get` prefix) gets a working
 service instead of 501 stubs: liveness always returns a `Health` (status `ok`),
-which the status adapter maps to the response; readiness runs every `ReadinessProbe` from `build_adapters()` in `main.py` and
-answers 503 on the first failure. `DatabaseProbe` (`SELECT 1`) is wired by
+which the status adapter maps to the response; readiness runs every
+`ReadinessProbe` from `build_adapters()` in `main.py` and answers 503 on the
+first failure. `DatabaseProbe` (`SELECT 1`) is wired by
 default; add a probe per external dependency.
 
 ## Upgrading the template
