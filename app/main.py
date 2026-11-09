@@ -58,7 +58,9 @@ def create_app(settings: Settings | None = None, adapters: Adapters | None = Non
         yield
         await engine.dispose()
 
-    operations = build_operations(adapters or build_adapters(settings, engine))
+    operations = build_operations(
+        build_adapters(settings, engine) if adapters is None else adapters
+    )
     app = AsyncApp(__name__, lifespan=lifespan)
     app.add_api(
         SPEC_PATH,

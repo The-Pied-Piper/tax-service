@@ -1,20 +1,17 @@
 """The take-home endpoints, run against the real tax engine (no database is touched)."""
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
 from starlette.testclient import TestClient
 
-from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
-from app.adapters.inbound.status_adapter import StatusRequestAdapter
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
+from app.adapters.outbound.db import create_engine
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.application.services.jurisdictions_service import JurisdictionsService
-from app.application.services.status_service import StatusService
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.take_home import Deductions
-from app.generated.handlers import Adapters
-from app.main import create_app
+from app.main import build_adapters, create_app
 from app.settings import Settings
 
 BASE = "/api/v1"
@@ -118,9 +115,9 @@ def test_a_failed_calculation_is_a_500_problem() -> None:
         async def calculate(self, *args: Any) -> Deductions:
             raise DeductionsUnavailableError("CA-ON 2025: KeyError")
 
-    adapters = Adapters(
-        jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
-        status=StatusRequestAdapter(StatusService([])),
+    settings = Settings()
+    adapters = replace(
+        build_adapters(settings, create_engine(settings)),
         take_home_calculations=TakeHomeCalculationsRequestAdapter(
             TakeHomeCalculationsService(Failing())
         ),

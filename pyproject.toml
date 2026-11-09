@@ -28,17 +28,17 @@ strict = true
 exclude = ["migrations/versions", "tools/service_gen/templates"]
 
 [[tool.mypy.overrides]]
-# tax-engine does not ship a py.typed marker yet.
-module = ["tax_engine.*"]
-follow_untyped_imports = true
-
-[[tool.mypy.overrides]]
 module = ["connexion.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["datamodel_code_generator.*"]
 implicit_reexport = true
+
+[[tool.mypy.overrides]]
+# tax-engine does not ship a py.typed marker yet.
+module = ["tax_engine.*"]
+follow_untyped_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -178,17 +178,25 @@ forbidden_modules = [
 allow_indirect_imports = true
 
 # tax-service's own: the domain and application know neither tax-engine nor how the engine is
-# run (a thread); inbound adapters do not know tax-engine.
+# run (threads, processes, an event-loop library); only the tax-engine adapter (and the
+# composition root that builds it) knows tax-engine.
 [[tool.importlinter.contracts]]
 id = "core-engine-and-threads-free"
 name = "Domain and application know neither tax-engine nor threads"
 type = "forbidden"
 source_modules = ["app.domain", "app.application"]
-forbidden_modules = ["tax_engine", "asyncio"]
+forbidden_modules = ["tax_engine", "asyncio", "threading", "concurrent", "multiprocessing", "anyio"]
 
 [[tool.importlinter.contracts]]
-id = "inbound-knows-no-engine"
-name = "Inbound adapters do not know tax-engine"
+id = "only-the-engine-adapter-knows-tax-engine"
+name = "Only the tax-engine adapter knows tax-engine"
 type = "forbidden"
-source_modules = ["app.adapters.inbound"]
+source_modules = [
+    "app.domain",
+    "app.application",
+    "app.adapters.inbound",
+    "app.adapters.outbound.db",
+    "app.generated",
+    "app.settings",
+]
 forbidden_modules = ["tax_engine"]
