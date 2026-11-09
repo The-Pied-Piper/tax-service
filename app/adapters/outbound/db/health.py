@@ -23,4 +23,4 @@ class DatabaseProbe:
             async with asyncio.timeout(self._timeout), self._engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
         except (SQLAlchemyError, OSError) as exc:  # TimeoutError is an OSError
-            raise NotReadyError(f"{self.name}: {type(exc).__name__}") from exc
+            raise NotReadyError(f"{self.name} unavailable") from exc

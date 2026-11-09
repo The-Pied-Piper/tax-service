@@ -8,7 +8,6 @@ fails with NotReadyError on the first unavailable dependency.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
 
 from app.application.ports.health import Health, ReadinessProbe
 
@@ -19,12 +18,12 @@ class StatusService:
 
     async def get_livez(
         self,
-    ) -> Any:
+    ) -> Health:
         return Health(status="ok")
 
     async def get_readyz(
         self,
-    ) -> Any:
+    ) -> Health:
         for probe in self._probes:
             await probe.check()
         return Health(status="ok")

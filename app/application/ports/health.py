@@ -14,7 +14,7 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class Health:
-    """What a liveness or readiness check reports: the status the health response carries."""
+    """The outcome of a liveness or readiness check."""
 
     status: str
 
