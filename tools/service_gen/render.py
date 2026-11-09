@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import shutil
 import warnings
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from .spec import Spec
+from .spec import Spec, resolve_property_names
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 
@@ -28,6 +29,7 @@ PROJECT_FILES: tuple[tuple[str, str], ...] = (
     ("project/pkg/domain/errors.py.j2", "{pkg}/domain/errors.py"),
     ("project/pkg/adapters/__init__.py.j2", "{pkg}/adapters/__init__.py"),
     ("project/pkg/adapters/inbound/__init__.py.j2", "{pkg}/adapters/inbound/__init__.py"),
+    ("project/pkg/adapters/inbound/http_errors.py.j2", "{pkg}/adapters/inbound/http_errors.py"),
     ("project/pkg/adapters/outbound/__init__.py.j2", "{pkg}/adapters/outbound/__init__.py"),
     ("project/pkg/adapters/outbound/db/__init__.py.j2", "{pkg}/adapters/outbound/db/__init__.py"),
     ("project/pkg/adapters/outbound/db/engine.py.j2", "{pkg}/adapters/outbound/db/engine.py"),
@@ -98,11 +100,34 @@ class Renderer:
 
     def stubs(self) -> None:
         """Create per-tag adapter/port/service stubs where they don't exist yet."""
+        resolve_property_names(self.spec, self._model_fields())
         for tag in self.spec.tags:
             for template, target in TAG_STUBS:
                 self._write(template, self._path(target, tag=tag.snake), overwrite=False, tag=tag)
 
     # -- internals ----------------------------------------------------------
+
+    def _model_fields(self) -> dict[str, dict[str, str]]:
+        """Read back what the model generator named each field: {class: {wire name: attribute}}."""
+        models = self.project_dir / self.package / "generated" / "models.py"
+        found: dict[str, dict[str, str]] = {}
+        for node in ast.parse(models.read_text()).body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            fields: dict[str, str] = {}
+            for item in node.body:
+                if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+                    aliases = [
+                        kw.value.value
+                        for kw in ast.walk(item)
+                        if isinstance(kw, ast.keyword)
+                        and kw.arg == "alias"
+                        and isinstance(kw.value, ast.Constant)
+                        and isinstance(kw.value.value, str)
+                    ]
+                    fields[aliases[0] if aliases else item.target.id] = item.target.id
+            found[node.name] = fields
+        return found
 
     def _path(self, target: str, **extra: str) -> Path:
         return self.project_dir / target.format(pkg=self.package, **extra)

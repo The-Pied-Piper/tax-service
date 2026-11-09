@@ -7,8 +7,6 @@ yours: `service-gen sync` never overwrites it.
 
 from __future__ import annotations
 
-from pydantic import TypeAdapter
-
 from app.application.ports.status_port import StatusPort
 from app.generated.models import StatusOutput
 
@@ -20,15 +18,15 @@ class StatusRequestAdapter:
     async def get_livez(
         self,
     ) -> StatusOutput:
-        # TODO: build domain objects from the inputs instead of passing DTOs through.
         result = await self._service.get_livez()
-        # TODO: map the domain result onto the response DTO.
-        return TypeAdapter(StatusOutput).validate_python(result, from_attributes=True)
+        return StatusOutput(
+            status=result.status,
+        )
 
     async def get_readyz(
         self,
     ) -> StatusOutput:
-        # TODO: build domain objects from the inputs instead of passing DTOs through.
         result = await self._service.get_readyz()
-        # TODO: map the domain result onto the response DTO.
-        return TypeAdapter(StatusOutput).validate_python(result, from_attributes=True)
+        return StatusOutput(
+            status=result.status,
+        )

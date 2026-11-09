@@ -1,6 +1,6 @@
 """Errors raised by the domain and application layers.
 
-They carry no HTTP knowledge; `main.py` maps them onto problem+json responses.
+They carry no HTTP knowledge: the inbound HTTP adapter translates them into responses.
 """
 
 
