@@ -51,7 +51,7 @@ class TaxEngineDeductions:
             return await asyncio.to_thread(
                 self._calculate, jurisdiction_code, year, salary, with_trace
             )
-        except (EngineError, KeyError, ValueError) as exc:
+        except (EngineError, ArithmeticError, KeyError, ValueError) as exc:
             raise DeductionsUnavailableError(
                 f"{jurisdiction_code} {year}: {type(exc).__name__}"
             ) from exc

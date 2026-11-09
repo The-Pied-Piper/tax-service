@@ -5,6 +5,9 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
+from app.adapters.outbound.tax_engine import TaxEngineDeductions
+from app.application.ports.deductions import DeductionsUnavailableError
+
 BASE = "/api/v1"
 COMPUTE = f"{BASE}/take-home-calculations:compute"
 
@@ -97,3 +100,24 @@ def test_jurisdictions_list(client: TestClient) -> None:
 
 def test_jurisdictions_rejects_a_page_token(client: TestClient) -> None:
     assert client.get(f"{BASE}/jurisdictions", params={"page_token": "x"}).status_code == 400
+
+
+def test_a_failed_calculation_is_a_500_problem(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fail(*args: Any, **kwargs: Any) -> None:
+        raise DeductionsUnavailableError("CA-ON 2025: KeyError")
+
+    monkeypatch.setattr(TaxEngineDeductions, "calculate", fail)
+    response = compute(client)
+    assert response.status_code == 500
+    assert response.json()["title"] == "Calculation failed"
+
+
+def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> None:
+    # Checked in this order: salary, jurisdiction_code, year, then the language the engine writes.
+    assert compute(client, salary="0.00", year=2024).json()["field"] == "salary"
+    assert (
+        compute(client, jurisdiction_code="CA-AB", year=2024).json()["field"] == "jurisdiction_code"
+    )
+    assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
