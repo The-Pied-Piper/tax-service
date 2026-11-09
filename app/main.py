@@ -7,7 +7,7 @@ adapters (databases, clients) here, never inside the domain or application layer
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -47,8 +47,11 @@ def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     )
 
 
-def create_app(settings: Settings | None = None, adapters: Adapters | None = None) -> AsyncApp:
-    """The ASGI app; `adapters` replaces the wiring of `build_adapters` (a test seam)."""
+def create_app(
+    settings: Settings | None = None,
+    build: Callable[[Settings, AsyncEngine], Adapters] = build_adapters,
+) -> AsyncApp:
+    """The ASGI app; `build` replaces the wiring of `build_adapters` (a test seam)."""
     settings = settings or Settings()
     logging.basicConfig(level=settings.log_level)
     engine = create_engine(settings)
@@ -58,9 +61,7 @@ def create_app(settings: Settings | None = None, adapters: Adapters | None = Non
         yield
         await engine.dispose()
 
-    operations = build_operations(
-        build_adapters(settings, engine) if adapters is None else adapters
-    )
+    operations = build_operations(build(settings, engine))
     app = AsyncApp(__name__, lifespan=lifespan)
     app.add_api(
         SPEC_PATH,

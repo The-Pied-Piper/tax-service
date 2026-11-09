@@ -177,26 +177,19 @@ forbidden_modules = [
 # Direct imports only: main reaches these through the adapters and services it wires.
 allow_indirect_imports = true
 
-# tax-service's own: the domain and application know neither tax-engine nor how the engine is
-# run (threads, processes, an event-loop library); only the tax-engine adapter (and the
-# composition root that builds it) knows tax-engine.
+# tax-service's own: the domain and application do not know how work is scheduled (threads,
+# processes, an event-loop library); no module imports tax-engine except the tax-engine adapter.
 [[tool.importlinter.contracts]]
-id = "core-engine-and-threads-free"
-name = "Domain and application know neither tax-engine nor threads"
+id = "core-does-not-schedule-work"
+name = "Domain and application do not know how work is scheduled"
 type = "forbidden"
 source_modules = ["app.domain", "app.application"]
-forbidden_modules = ["tax_engine", "asyncio", "threading", "concurrent", "multiprocessing", "anyio"]
+forbidden_modules = ["asyncio", "threading", "concurrent", "multiprocessing", "subprocess", "anyio"]
 
 [[tool.importlinter.contracts]]
-id = "only-the-engine-adapter-knows-tax-engine"
-name = "Only the tax-engine adapter knows tax-engine"
+id = "only-the-engine-adapter-imports-tax-engine"
+name = "Only the tax-engine adapter imports tax-engine"
 type = "forbidden"
-source_modules = [
-    "app.domain",
-    "app.application",
-    "app.adapters.inbound",
-    "app.adapters.outbound.db",
-    "app.generated",
-    "app.settings",
-]
+source_modules = ["app"]
 forbidden_modules = ["tax_engine"]
+ignore_imports = ["app.adapters.outbound.tax_engine.** -> tax_engine"]

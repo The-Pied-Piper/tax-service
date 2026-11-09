@@ -4,13 +4,14 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.testclient import TestClient
 
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
-from app.adapters.outbound.db import create_engine
 from app.application.ports.deductions import DeductionsUnavailableError
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.take_home import Deductions
+from app.generated.handlers import Adapters
 from app.main import build_adapters, create_app
 from app.settings import Settings
 
@@ -115,14 +116,15 @@ def test_a_failed_calculation_is_a_500_problem() -> None:
         async def calculate(self, *args: Any) -> Deductions:
             raise DeductionsUnavailableError("CA-ON 2025: KeyError")
 
-    settings = Settings()
-    adapters = replace(
-        build_adapters(settings, create_engine(settings)),
-        take_home_calculations=TakeHomeCalculationsRequestAdapter(
-            TakeHomeCalculationsService(Failing())
-        ),
-    )
-    client = create_app(Settings(), adapters).test_client()
+    def build(settings: Settings, engine: AsyncEngine) -> Adapters:
+        return replace(
+            build_adapters(settings, engine),
+            take_home_calculations=TakeHomeCalculationsRequestAdapter(
+                TakeHomeCalculationsService(Failing())
+            ),
+        )
+
+    client = create_app(Settings(), build).test_client()
     response = compute(client)
     assert response.status_code == 500
     assert response.json()["title"] == "Calculation failed"
