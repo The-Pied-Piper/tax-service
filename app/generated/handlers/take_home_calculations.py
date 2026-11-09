@@ -13,6 +13,20 @@ _compute_take_home_calculation_body: TypeAdapter[ComputeTakeHomeCalculationReque
 _compute_take_home_calculation_response: TypeAdapter[ComputeTakeHomeCalculationResponse] = TypeAdapter(ComputeTakeHomeCalculationResponse)
 
 
+def _reply(
+    adapter: TypeAdapter[Any], value: Any, status: int, media_type: str | None
+) -> tuple[Any, int, dict[str, str]]:
+    """Response body for the wire, with the content type the spec declares for it.
+
+    Aliases are as in the spec. Properties the adapter never set are left out (defaults
+    included), and one it set to ``None`` goes out as ``null``. Connexion cannot pick a
+    content type itself when an operation declares several (for example
+    ``application/problem+json`` for an error), so the handler names it.
+    """
+    body = adapter.dump_python(value, mode="json", by_alias=True, exclude_unset=True)
+    return body, status, {"Content-Type": media_type} if media_type else {}
+
+
 class TakeHomeCalculationsHandlers:
     """Connexion entrypoints for the ``TakeHomeCalculations`` tag.
 
@@ -26,8 +40,13 @@ class TakeHomeCalculationsHandlers:
     async def compute_take_home_calculation(
         self,
         body: Any,
-    ) -> tuple[Any, int]:
+    ) -> tuple[Any, int, dict[str, str]]:
         """POST /take-home-calculations:compute - Compute take-home pay for a gross salary."""
         request = _compute_take_home_calculation_body.validate_python(body)
         result = await self._adapter.compute_take_home_calculation(body=request)
-        return _compute_take_home_calculation_response.dump_python(result, mode="json", by_alias=True), 200
+        return _reply(
+            _compute_take_home_calculation_response,
+            result,
+            200,
+            "application/json",
+        )

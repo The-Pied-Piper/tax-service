@@ -134,9 +134,7 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
     ]
     trace: Annotated[
         list[FormTrace] | None,
-        Field(
-            description="One entry per form; null unless include_trace is true. (The generated handlers write every field, so an absent trace is sent as null.)\n"
-        ),
+        Field(description="Present only when include_trace is true; one entry per form."),
     ] = None
 
 

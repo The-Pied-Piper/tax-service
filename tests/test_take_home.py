@@ -27,7 +27,6 @@ def test_70000_in_ontario_2025(client: TestClient) -> None:
         "total_deductions": "16531.32",
         "take_home": "53468.68",
         "provisional": False,
-        "trace": None,
     }
 
 
@@ -51,7 +50,7 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
             assert set(line) == {"label", "amount", "text"}
     labels = [line["label"] for lines in forms.values() for line in lines]
     assert any(label is not None for label in labels)
-    assert compute(client).json()["trace"] is None
+    assert "trace" not in compute(client).json()
 
 
 @pytest.mark.parametrize(

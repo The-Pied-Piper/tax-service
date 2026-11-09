@@ -91,6 +91,15 @@ name = "Inbound and outbound adapters never import each other"
 type = "independence"
 modules = ["app.adapters.inbound", "app.adapters.outbound"]
 
+[[tool.importlinter.contracts]]
+id = "main-does-not-translate-errors"
+name = "Composition root imports no error type or validation library, so it cannot map errors itself"
+type = "forbidden"
+source_modules = ["app.main"]
+forbidden_modules = ["pydantic", "pydantic_core", "app.domain.errors"]
+# Direct imports only: main reaches these through the adapters it registers.
+allow_indirect_imports = true
+
 # tax-service's own: the domain and application know neither tax-engine nor how the engine is
 # run (a thread); inbound adapters know neither tax-engine, the database nor the settings.
 [[tool.importlinter.contracts]]

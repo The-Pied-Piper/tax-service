@@ -37,13 +37,15 @@ class TakeHomeCalculationsRequestAdapter:
             else body.language_code,
             include_trace=bool(body.include_trace),
         )
-        return ComputeTakeHomeCalculationResponse(
+        response = ComputeTakeHomeCalculationResponse(
             salary=str(result.salary),
             total_deductions=str(result.total_deductions),
             take_home=str(result.take_home),
             provisional=result.provisional,
-            trace=None if result.trace is None else [_form_trace(t) for t in result.trace],
         )
+        if result.trace is not None:
+            response.trace = [_form_trace(t) for t in result.trace]
+        return response
 
 
 def _form_trace(trace: DomainFormTrace) -> FormTrace:

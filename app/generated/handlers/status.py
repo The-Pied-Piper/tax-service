@@ -13,6 +13,20 @@ _get_livez_response: TypeAdapter[StatusOutput] = TypeAdapter(StatusOutput)
 _get_readyz_response: TypeAdapter[StatusOutput] = TypeAdapter(StatusOutput)
 
 
+def _reply(
+    adapter: TypeAdapter[Any], value: Any, status: int, media_type: str | None
+) -> tuple[Any, int, dict[str, str]]:
+    """Response body for the wire, with the content type the spec declares for it.
+
+    Aliases are as in the spec. Properties the adapter never set are left out (defaults
+    included), and one it set to ``None`` goes out as ``null``. Connexion cannot pick a
+    content type itself when an operation declares several (for example
+    ``application/problem+json`` for an error), so the handler names it.
+    """
+    body = adapter.dump_python(value, mode="json", by_alias=True, exclude_unset=True)
+    return body, status, {"Content-Type": media_type} if media_type else {}
+
+
 class StatusHandlers:
     """Connexion entrypoints for the ``Status`` tag.
 
@@ -25,14 +39,24 @@ class StatusHandlers:
 
     async def get_livez(
         self,
-    ) -> tuple[Any, int]:
+    ) -> tuple[Any, int, dict[str, str]]:
         """GET /status/livez - Check liveness of application."""
         result = await self._adapter.get_livez()
-        return _get_livez_response.dump_python(result, mode="json", by_alias=True), 200
+        return _reply(
+            _get_livez_response,
+            result,
+            200,
+            "application/json",
+        )
 
     async def get_readyz(
         self,
-    ) -> tuple[Any, int]:
+    ) -> tuple[Any, int, dict[str, str]]:
         """GET /status/readyz - Check readiness of application."""
         result = await self._adapter.get_readyz()
-        return _get_readyz_response.dump_python(result, mode="json", by_alias=True), 200
+        return _reply(
+            _get_readyz_response,
+            result,
+            200,
+            "application/json",
+        )

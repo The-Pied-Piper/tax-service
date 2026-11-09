@@ -43,7 +43,7 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
-        - name: cursor
+        - name: pageToken
           in: query
           schema:
             type: string
@@ -92,6 +92,10 @@ paths:
                 $ref: "#/components/schemas/Widget"
         "404":
           description: Not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
     delete:
       tags: [Widgets]
       summary: Delete a widget.
@@ -101,6 +105,16 @@ paths:
           description: Deleted.
 components:
   schemas:
+    Problem:
+      type: object
+      required: [title, status, detail]
+      properties:
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
     StatusOutput:
       type: object
       required: [status]
@@ -129,6 +143,8 @@ components:
           type: string
         weightGrams:
           type: integer
+        note:
+          type: string
     WidgetPage:
       type: object
       required: [items]
@@ -137,6 +153,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Widget"
-        nextCursor:
+        nextPageToken:
           type: string
           nullable: true

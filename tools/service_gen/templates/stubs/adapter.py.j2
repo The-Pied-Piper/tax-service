@@ -19,8 +19,10 @@ from {{ module }} import {{ names }}
 {% if tag.adapter_uses_any or tag.type_imports %}
 
 {% endif %}
+{% if tag.adapter_validates_response %}
 from pydantic import TypeAdapter
 
+{% endif %}
 from {{ package }}.application.ports.{{ tag.snake }}_port import {{ tag.pascal }}Port
 {% if models %}
 from {{ package }}.generated.models import {{ models | join(", ") }}
@@ -38,12 +40,54 @@ class {{ tag.pascal }}RequestAdapter:
         {{ p }},
 {% endfor %}
     ) -> {{ op.response_type or "None" }}:
-        # TODO: build domain objects from the inputs instead of passing DTOs through.
-{% if op.response_type %}
-        result = await self._service.{{ op.function_name }}({{ op.call_args | join(", ") }})
-        # TODO: map the domain result onto the response DTO.
-        return TypeAdapter({{ op.response_type }}).validate_python(result, from_attributes=True)
+{% if op.body_crosses_whole %}
+        # TODO: the request body crosses into the application whole here; pass its values.
+{% elif op.nested_body_properties %}
+        # TODO: nested properties reach the application as generated models; convert them.
+{% endif %}
+{% if op.paging %}
+{% if op.paging.size %}
+        limit = {{ op.paging.default_size }} if {{ op.paging.size }} is None or {{ op.paging.size }} < 1 else min({{ op.paging.size }}, {{ op.paging.max_size }})
+{% endif %}
+        # TODO: decode {{ op.paging.token }} into the cursor the application understands
+        # (None for the first page) and reject one you did not issue.
+        # Drop the cursor if the list is always one page.
+        cursor = {{ op.paging.token }}
+{% endif %}
+{% set call %}{% if op.call_args %}(
+{% for arg in op.call_args %}
+            {{ arg }},
+{% endfor %}
+        ){% else %}(){% endif %}{% endset %}
+{% if op.maps_result %}
+        result = await self._service.{{ op.function_name }}{{ call }}
 {% else %}
-        await self._service.{{ op.function_name }}({{ op.call_args | join(", ") }})
+        await self._service.{{ op.function_name }}{{ call }}
+{% endif %}
+{% if op.paging %}
+        # TODO: encode the application's next cursor into the response's next page token.
+{% endif %}
+{% if op.response_properties is not none %}
+{% if op.nested_response_properties %}
+        # TODO: nested properties must already be DTO-shaped; convert them.
+{% endif %}
+        return {{ op.response_type }}(
+{% for prop, mapped in op.mapped_response_properties %}
+{% if mapped %}
+            {{ prop.name }}=result.{{ prop.name }},
+{% elif prop.required %}
+            # {{ prop.name }} is required: map it from the result.
+{% else %}
+            # {{ prop.name }} is optional: map it to send it, leave it out to omit it.
+{% endif %}
+{% endfor %}
+        )
+{% elif op.response_type %}
+{% if op.probe_kind %}
+        return TypeAdapter({{ op.response_type }}).validate_python(vars(result))
+{% else %}
+        # TODO: map the result onto the response; this expects plain dicts and lists.
+        return TypeAdapter({{ op.response_type }}).validate_python(result)
+{% endif %}
 {% endif %}
 {% endfor %}
