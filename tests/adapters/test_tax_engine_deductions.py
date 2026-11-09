@@ -8,11 +8,9 @@ import pytest
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
 from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.errors import InvalidArgumentError
-from app.domain.take_home import find_jurisdiction
+from app.domain.take_home import SUPPORTED_JURISDICTIONS
 
-ONTARIO = find_jurisdiction("CA-ON")
-assert ONTARIO is not None
-ONTARIO_ITEMS = ONTARIO.deduction_items
+ONTARIO_ITEMS = SUPPORTED_JURISDICTIONS[0].deduction_items  # CA-ON, the only jurisdiction
 
 
 async def calculate(
