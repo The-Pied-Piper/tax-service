@@ -192,6 +192,9 @@ name = "Only the tax-engine adapter imports tax-engine"
 type = "forbidden"
 source_modules = ["app"]
 forbidden_modules = ["tax_engine"]
-ignore_imports = ["app.adapters.outbound.tax_engine.** -> tax_engine"]
+ignore_imports = [
+    "app.adapters.outbound.tax_engine -> tax_engine",
+    "app.adapters.outbound.tax_engine.** -> tax_engine",
+]
 # A freshly scaffolded project has no tax-engine adapter, so the ignore may match nothing.
 unmatched_ignore_imports_alerting = "none"
