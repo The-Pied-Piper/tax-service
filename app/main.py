@@ -24,7 +24,7 @@ from app.adapters.inbound.status_adapter import StatusRequestAdapter
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
 from app.adapters.outbound.db import DatabaseProbe, create_engine
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
-from app.application.ports.deductions import DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsCalculator, DeductionsUnavailableError
 from app.application.ports.health import NotReadyError
 from app.application.services.jurisdictions_service import JurisdictionsService
 from app.application.services.status_service import StatusService
@@ -50,7 +50,9 @@ _DOMAIN_ERROR_STATUS: dict[type[DomainError], int] = {
 }
 
 
-def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
+def build_adapters(
+    settings: Settings, engine: AsyncEngine, deductions: DeductionsCalculator | None = None
+) -> Adapters:
     """Construct outbound adapters -> services -> inbound request adapters.
 
     Repositories take a session factory from `create_session_factory(engine)`
@@ -61,12 +63,14 @@ def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
         jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
         status=StatusRequestAdapter(StatusService(probes)),
         take_home_calculations=TakeHomeCalculationsRequestAdapter(
-            TakeHomeCalculationsService(TaxEngineDeductions())
+            TakeHomeCalculationsService(TaxEngineDeductions() if deductions is None else deductions)
         ),
     )
 
 
-def create_app(settings: Settings | None = None) -> AsyncApp:
+def create_app(
+    settings: Settings | None = None, deductions: DeductionsCalculator | None = None
+) -> AsyncApp:
     settings = settings or Settings()
     logging.basicConfig(level=settings.log_level)
     engine = create_engine(settings)
@@ -76,7 +80,7 @@ def create_app(settings: Settings | None = None) -> AsyncApp:
         yield
         await engine.dispose()
 
-    operations = build_operations(build_adapters(settings, engine))
+    operations = build_operations(build_adapters(settings, engine, deductions))
     app = AsyncApp(__name__, lifespan=lifespan)
     app.add_api(
         SPEC_PATH,

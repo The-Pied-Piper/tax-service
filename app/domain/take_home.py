@@ -27,10 +27,18 @@ class FormTrace:
 
 
 @dataclass(frozen=True)
-class Deductions:
-    """What a salary costs in contributions and tax, with the steps that explain it."""
+class DeductionFigure:
+    """One kind of deduction (for example `ei`) and what the salary pays of it."""
 
-    total: Decimal
+    item: str
+    amount: Decimal
+
+
+@dataclass(frozen=True)
+class Deductions:
+    """The figures asked for, with the steps that explain them."""
+
+    figures: tuple[DeductionFigure, ...]
     trace: tuple[FormTrace, ...]
 
 
@@ -53,6 +61,8 @@ class SupportedYear:
 class SupportedJurisdiction:
     code: str
     years: tuple[SupportedYear, ...]
+    # What "total deductions" means here: the sum of exactly these items.
+    deduction_items: tuple[str, ...]
 
     def year(self, year: int) -> SupportedYear | None:
         return next((supported for supported in self.years if supported.year == year), None)
@@ -61,7 +71,9 @@ class SupportedJurisdiction:
 # Which jurisdictions and years the service offers, and which are provisional, is its own policy.
 SUPPORTED_JURISDICTIONS = (
     SupportedJurisdiction(
-        "CA-ON", (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True))
+        "CA-ON",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
     ),
 )
 

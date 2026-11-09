@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.application.ports.deductions import DeductionsCalculator
+from app.application.ports.deductions import DeductionsCalculator, DeductionsUnavailableError
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
     CENTS,
     SALARY_LIMIT,
+    SupportedJurisdiction,
     TakeHomeResult,
     find_jurisdiction,
 )
@@ -34,29 +35,42 @@ class TakeHomeCalculationsService:
             raise InvalidArgumentError("salary", "salary must be above 0")
         if salary >= SALARY_LIMIT:
             raise InvalidArgumentError("salary", "salary must be below 1,000,000,000,000,000")
-        provisional = _provisional(jurisdiction_code, year)
+        jurisdiction = _supported(jurisdiction_code, year)
         deductions = await self._deductions.calculate(
-            jurisdiction_code, year, salary, language_code, include_trace
+            jurisdiction_code,
+            year,
+            salary,
+            language_code,
+            jurisdiction.deduction_items,
+            include_trace,
         )
+        if sorted(f.item for f in deductions.figures) != sorted(jurisdiction.deduction_items):
+            raise DeductionsUnavailableError(f"{jurisdiction_code} {year}: wrong deduction items")
+        total = sum((f.amount for f in deductions.figures), Decimal(0))
         return TakeHomeResult(
             salary=salary.quantize(CENTS),
-            total_deductions=deductions.total.quantize(CENTS),
-            take_home=(salary - deductions.total).quantize(CENTS),
-            provisional=provisional,
+            total_deductions=total.quantize(CENTS),
+            take_home=(salary - total).quantize(CENTS),
+            provisional=_provisional(jurisdiction, year),
             trace=deductions.trace if include_trace else None,
         )
 
 
-def _provisional(jurisdiction_code: str, year: int) -> bool:
-    """Whether the year's figures are provisional; rejects an unsupported jurisdiction or year."""
+def _supported(jurisdiction_code: str, year: int) -> SupportedJurisdiction:
+    """The supported jurisdiction; rejects an unsupported jurisdiction or year."""
     jurisdiction = find_jurisdiction(jurisdiction_code)
     if jurisdiction is None:
         raise InvalidArgumentError(
             "jurisdiction_code", f"jurisdiction_code {jurisdiction_code} is not supported yet"
         )
-    supported = jurisdiction.year(year)
-    if supported is None:
+    if jurisdiction.year(year) is None:
         raise InvalidArgumentError(
             "year", f"year {year} is not supported for {jurisdiction_code} yet"
         )
+    return jurisdiction
+
+
+def _provisional(jurisdiction: SupportedJurisdiction, year: int) -> bool:
+    supported = jurisdiction.year(year)
+    assert supported is not None
     return supported.provisional

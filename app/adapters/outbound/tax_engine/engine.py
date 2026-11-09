@@ -1,9 +1,10 @@
 """Driven adapter: asks tax-engine for the deductions of a salary.
 
-The figures are read by form and kind from the engine's own worksheets: CPP (base and enhanced)
-from Schedule 8, CPP2 from Schedule 8 line 22, EI from T2204 line 16 and income tax as T1 line 167
-(federal and Ontario tax less credits and benefits). The engine is synchronous, so it runs on a
-worker thread here; the application only sees an async port. Everything the engine raises is
+It only maps each deduction item the application asks for to the engine's form and kind, and reads
+the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
+line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). What
+"total deductions" is made of is decided by the domain. The engine is synchronous, so it runs on
+a worker thread here; the application only sees an async port. Everything the engine raises is
 translated into the port's own errors.
 """
 
@@ -14,6 +15,7 @@ from decimal import Decimal
 
 from tax_engine import build_tax_computation
 from tax_engine.adapters.inbound.trace_english import EnglishTraceRenderer
+from tax_engine.application.services.tax_computation import TaxComputationService
 from tax_engine.domain.artifact import Artifact
 from tax_engine.domain.errors import DomainError as EngineError
 from tax_engine.domain.jurisdiction_code import JurisdictionCode
@@ -22,16 +24,25 @@ from tax_engine.registrations import artifact_kinds
 
 from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.errors import InvalidArgumentError
-from app.domain.take_home import Deductions, FormTrace, TraceEntry
+from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEntry
 
 ENGLISH = "en"
+
+# Each deduction item to the engine's (form, kind) that holds its figure.
+FIGURES = {
+    "cpp_base": ("ca/schedule_8", "ca/schedule_8_cpp_base_contributions_on_return"),
+    "cpp_enhanced": ("ca/schedule_8", "ca/cpp_part_3_line_12"),
+    "cpp2": ("ca/schedule_8", "ca/cpp_part_3_line_22"),
+    "ei": ("ca/t2204", "ca/t2204_line_16"),
+    "income_tax": ("ca/t1_tax_and_credits", "ca/refund_or_balance_owing"),
+}
 
 
 class TaxEngineDeductions:
     """Implements DeductionsCalculator with tax-engine; only English text is available."""
 
-    def __init__(self) -> None:
-        self._engine = build_tax_computation()
+    def __init__(self, engine: TaxComputationService | None = None) -> None:
+        self._engine = build_tax_computation() if engine is None else engine
         self._kinds = artifact_kinds()
         self._renderer = EnglishTraceRenderer()
 
@@ -41,29 +52,39 @@ class TaxEngineDeductions:
         year: int,
         salary: Decimal,
         language_code: str,
+        items: tuple[str, ...],
         with_trace: bool,
     ) -> Deductions:
         if language_code != ENGLISH:
             raise InvalidArgumentError(
                 "language_code", f"language_code {language_code} is not supported; use {ENGLISH}"
             )
+        unknown = [item for item in items if item not in FIGURES]
+        if unknown:
+            raise DeductionsUnavailableError(f"unknown deduction items: {', '.join(unknown)}")
         try:
             return await asyncio.to_thread(
-                self._calculate, jurisdiction_code, year, salary, with_trace
+                self._calculate, jurisdiction_code, year, salary, items, with_trace
             )
-        except (EngineError, ArithmeticError, KeyError, ValueError) as exc:
+        except (EngineError, ArithmeticError, KeyError, TypeError, ValueError) as exc:
             raise DeductionsUnavailableError(
                 f"{jurisdiction_code} {year}: {type(exc).__name__}"
             ) from exc
 
     def _calculate(
-        self, jurisdiction_code: str, year: int, salary: Decimal, with_trace: bool
+        self,
+        jurisdiction_code: str,
+        year: int,
+        salary: Decimal,
+        items: tuple[str, ...],
+        with_trace: bool,
     ) -> Deductions:
         sheets = self._engine.compute(
             JurisdictionCode(jurisdiction_code), year, Artifact(EMPLOYMENT_INCOME, salary)
         )
 
-        def figure(form: str, kind: str) -> Decimal:
+        def figure(item: str) -> Decimal:
+            form, kind = FIGURES[item]
             (sheet,) = sheets[form]
             value: Decimal = sheet.get(self._kinds.kind(kind)).value
             return value
@@ -81,11 +102,7 @@ class TaxEngineDeductions:
                         for line in sheet.trace
                     )
                     trace.append(FormTrace(form=form, lines=lines))
-        total = (
-            figure("ca/schedule_8", "ca/schedule_8_cpp_base_contributions_on_return")
-            + figure("ca/schedule_8", "ca/cpp_part_3_line_12")
-            + figure("ca/schedule_8", "ca/cpp_part_3_line_22")
-            + figure("ca/t2204", "ca/t2204_line_16")
-            + figure("ca/t1_tax_and_credits", "ca/refund_or_balance_owing")
+        return Deductions(
+            figures=tuple(DeductionFigure(item, figure(item)) for item in items),
+            trace=tuple(trace),
         )
-        return Deductions(total=total, trace=tuple(trace))

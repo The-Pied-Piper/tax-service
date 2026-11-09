@@ -1,45 +1,78 @@
-"""The tax-engine adapter on its own: real engine, no HTTP."""
+"""The tax-engine adapter on its own: no HTTP; the real engine, or a fake one that fails."""
 
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 import pytest
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
 from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.errors import InvalidArgumentError
+from app.domain.take_home import find_jurisdiction
+
+ONTARIO_ITEMS = find_jurisdiction("CA-ON").deduction_items  # type: ignore[union-attr]
+
+
+async def calculate(
+    calculator: TaxEngineDeductions, year: int = 2025, language: str = "en", trace: bool = False
+) -> Any:
+    return await calculator.calculate("CA-ON", year, Decimal(70000), language, ONTARIO_ITEMS, trace)
 
 
 async def test_70000_in_ontario() -> None:
-    deductions = await TaxEngineDeductions().calculate("CA-ON", 2025, Decimal(70000), "en", False)
-    assert deductions.total == Decimal("16531.32")
+    deductions = await calculate(TaxEngineDeductions())
+    assert {f.item: f.amount for f in deductions.figures} == {
+        "cpp_base": Decimal("3291.75"),
+        "cpp_enhanced": Decimal("665.00"),
+        "cpp2": Decimal("0.00"),
+        "ei": Decimal("1077.48"),
+        "income_tax": Decimal("11497.09"),
+    }
     assert deductions.trace == ()
 
 
 async def test_trace_lines_are_text_with_a_figure() -> None:
-    deductions = await TaxEngineDeductions().calculate("CA-ON", 2025, Decimal(70000), "en", True)
+    deductions = await calculate(TaxEngineDeductions(), trace=True)
     assert deductions.trace
     assert all(line.text for form in deductions.trace for line in form.lines)
 
 
 async def test_a_language_it_cannot_write_is_refused() -> None:
     with pytest.raises(InvalidArgumentError) as error:
-        await TaxEngineDeductions().calculate("CA-ON", 2025, Decimal(70000), "fr", False)
+        await calculate(TaxEngineDeductions(), language="fr")
     assert error.value.field == "language_code"
+
+
+async def test_an_item_it_does_not_know_is_the_ports_error() -> None:
+    with pytest.raises(DeductionsUnavailableError):
+        await TaxEngineDeductions().calculate(
+            "CA-ON", 2025, Decimal(70000), "en", ("not_an_item",), False
+        )
 
 
 async def test_an_engine_failure_becomes_the_ports_error() -> None:
     with pytest.raises(DeductionsUnavailableError):
-        await TaxEngineDeductions().calculate("CA-ON", 2024, Decimal(70000), "en", False)
+        await calculate(TaxEngineDeductions(), year=2024)
 
 
-async def test_an_arithmetic_failure_becomes_the_ports_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calculator = TaxEngineDeductions()
+class FailingEngine:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
 
-    def overflow(*args: object) -> None:
-        raise InvalidOperation("too many digits")
+    def compute(self, *args: object) -> None:
+        raise self._error
 
-    monkeypatch.setattr(calculator, "_calculate", overflow)
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        InvalidOperation("too many digits"),
+        TypeError("no rendering"),
+        KeyError("form"),
+        ValueError(),
+    ],
+)
+async def test_other_engine_failures_become_the_ports_error(error: Exception) -> None:
+    calculator = TaxEngineDeductions(FailingEngine(error))  # type: ignore[arg-type]
     with pytest.raises(DeductionsUnavailableError):
-        await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", False)
+        await calculate(calculator)

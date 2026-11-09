@@ -19,10 +19,13 @@ class DeductionsCalculator(Protocol):
         year: int,
         salary: Decimal,
         language_code: str,
+        items: tuple[str, ...],
         with_trace: bool,
     ) -> Deductions:
-        """Total deductions for `salary`, with the explaining trace (empty unless `with_trace`).
+        """What `salary` pays of each of `items`, with the explaining trace (empty unless
+        `with_trace`). Returns exactly one figure for each requested item.
 
         Raises InvalidArgumentError for a value the calculator cannot take, such as a language
-        it cannot write, and DeductionsUnavailableError when the calculation itself fails.
+        it cannot write, and DeductionsUnavailableError when an item is unknown to it or the
+        calculation itself fails.
         """
