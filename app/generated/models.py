@@ -22,7 +22,7 @@ class ComputeTakeHomeCalculationRequest(BaseModel):
     jurisdiction_code: Annotated[
         str,
         Field(
-            description="ISO 3166 code, upper case, as the engine takes it.",
+            description="ISO 3166 code, upper case.",
             examples=["CA-ON"],
             pattern="^[A-Z]{2}(-[A-Z0-9]{1,3})?$",
         ),
@@ -100,7 +100,13 @@ class FormTrace(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    form: Annotated[str, Field(examples=["ca/schedule_8"])]
+    form: Annotated[
+        str,
+        Field(
+            description="Identifier of the form; opaque, to be compared and not parsed.",
+            examples=["ca/schedule_8"],
+        ),
+    ]
     lines: list[TraceLine]
 
 

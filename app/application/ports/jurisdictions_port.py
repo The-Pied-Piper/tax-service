@@ -12,8 +12,4 @@ from app.domain.take_home import SupportedJurisdiction
 
 
 class JurisdictionsPort(Protocol):
-    async def list_jurisdictions(
-        self,
-        max_page_size: int | None = None,
-        page_token: str | None = None,
-    ) -> tuple[SupportedJurisdiction, ...]: ...
+    async def list_jurisdictions(self) -> tuple[SupportedJurisdiction, ...]: ...

@@ -23,7 +23,8 @@ from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapt
 from app.adapters.inbound.status_adapter import StatusRequestAdapter
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
 from app.adapters.outbound.db import DatabaseProbe, create_engine
-from app.adapters.outbound.tax_engine import TaxEngineAdapter
+from app.adapters.outbound.tax_engine import TaxEngineDeductions
+from app.application.ports.deductions import DeductionsUnavailableError
 from app.application.ports.health import NotReadyError
 from app.application.services.jurisdictions_service import JurisdictionsService
 from app.application.services.status_service import StatusService
@@ -60,7 +61,7 @@ def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
         jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
         status=StatusRequestAdapter(StatusService(probes)),
         take_home_calculations=TakeHomeCalculationsRequestAdapter(
-            TakeHomeCalculationsService(TaxEngineAdapter())
+            TakeHomeCalculationsService(TaxEngineDeductions())
         ),
     )
 
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None) -> AsyncApp:
     app.add_error_handler(DomainError, _domain_error)
     app.add_error_handler(PydanticValidationError, _bad_request)
     app.add_error_handler(NotReadyError, _not_ready)
+    app.add_error_handler(DeductionsUnavailableError, _deductions_unavailable)
     app.add_error_handler(NotImplementedError, _not_implemented)
     return app
 
@@ -120,6 +122,10 @@ def _bad_request(request: ConnexionRequest, exc: Exception) -> ConnexionResponse
 
 def _not_ready(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
     return problem(status=503, title="Service Unavailable", detail=str(exc))
+
+
+def _deductions_unavailable(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
+    return problem(status=500, title="Calculation failed", detail=str(exc))
 
 
 def _not_implemented(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:

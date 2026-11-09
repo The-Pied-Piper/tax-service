@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 CENTS = Decimal("0.01")
-# The engine works in 28-digit decimals and fails on a salary much larger than this.
+# The largest salary the service accepts (product limit); anything at or above it is refused.
 SALARY_LIMIT = Decimal("1e15")
 
 
@@ -26,13 +26,10 @@ class FormTrace:
 
 
 @dataclass(frozen=True)
-class EngineFigures:
-    """What the tax engine returns for one salary: each deduction and the trace."""
+class Deductions:
+    """What a salary costs in contributions and tax, with the steps that explain it."""
 
-    cpp: Decimal
-    cpp2: Decimal
-    ei: Decimal
-    income_tax: Decimal
+    total: Decimal
     trace: tuple[FormTrace, ...]
 
 
@@ -56,10 +53,17 @@ class SupportedJurisdiction:
     code: str
     years: tuple[SupportedYear, ...]
 
+    def year(self, year: int) -> SupportedYear | None:
+        return next((supported for supported in self.years if supported.year == year), None)
 
-# Hardcoded for now; the list will come from the engine when it can say what it supports.
+
+# Which jurisdictions and years the service offers, and which are provisional, is its own policy.
 SUPPORTED_JURISDICTIONS = (
     SupportedJurisdiction(
         "CA-ON", (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True))
     ),
 )
+
+
+def find_jurisdiction(code: str) -> SupportedJurisdiction | None:
+    return next((j for j in SUPPORTED_JURISDICTIONS if j.code == code), None)

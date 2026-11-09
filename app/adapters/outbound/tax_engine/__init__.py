@@ -1,5 +1,5 @@
-"""Outbound adapter to the tax-engine library."""
+"""Driven adapter to the tax-engine library."""
 
-from app.adapters.outbound.tax_engine.engine import TaxEngineAdapter
+from app.adapters.outbound.tax_engine.engine import TaxEngineDeductions
 
-__all__ = ["TaxEngineAdapter"]
+__all__ = ["TaxEngineDeductions"]
