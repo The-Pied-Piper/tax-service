@@ -93,11 +93,12 @@ def test_generated_project_passes_its_own_tests(project: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_generated_project_is_lint_and_type_clean(project: Path) -> None:
+def test_generated_project_is_lint_type_and_layer_clean(project: Path) -> None:
     for cmd in (
         [sys.executable, "-m", "ruff", "check", "."],
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         [sys.executable, "-m", "mypy", "."],
+        [str(Path(sys.executable).parent / "lint-imports")],
     ):
         result = subprocess.run(cmd, cwd=project, capture_output=True, text=True)
         assert result.returncode == 0, " ".join(cmd) + "\n" + result.stdout + result.stderr
