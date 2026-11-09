@@ -30,6 +30,22 @@ _{{ op.function_name }}_response: TypeAdapter[{{ op.response_type }}] = TypeAdap
 {% endfor %}
 
 
+{% if tag.operations | selectattr("response_type") | list %}
+def _reply(
+    adapter: TypeAdapter[Any], value: Any, status: int, media_type: str | None
+) -> tuple[Any, int, dict[str, str]]:
+    """Response body for the wire, with the content type the spec declares for it.
+
+    Aliases are as in the spec. Properties the adapter never set are left out (defaults
+    included), and one it set to ``None`` goes out as ``null``. Connexion cannot pick a
+    content type itself when an operation declares several (for example
+    ``application/problem+json`` for an error), so the handler names it.
+    """
+    body = adapter.dump_python(value, mode="json", by_alias=True, exclude_unset=True)
+    return body, status, {"Content-Type": media_type} if media_type else {}
+
+
+{% endif %}
 class {{ tag.pascal }}Handlers:
     """Connexion entrypoints for the ``{{ tag.name }}`` tag.
 
@@ -46,7 +62,7 @@ class {{ tag.pascal }}Handlers:
 {% for p in op.handler_params %}
         {{ p }},
 {% endfor %}
-    ) -> tuple[Any, int]:
+    ) -> {{ "tuple[Any, int, dict[str, str]]" if op.response_type else "tuple[Any, int]" }}:
         """{{ op.method | upper }} {{ op.path }}{% if op.summary %} - {{ op.summary }}{% endif %}"""
 {% if op.body_type and op.body_required %}
         request = _{{ op.function_name }}_body.validate_python(body)
@@ -55,7 +71,12 @@ class {{ tag.pascal }}Handlers:
 {% endif %}
 {% if op.response_type %}
         result = await self._adapter.{{ op.function_name }}({{ op.handler_call_args | join(", ") }})
-        return _{{ op.function_name }}_response.dump_python(result, mode="json", by_alias=True), {{ op.status_code }}
+        return _reply(
+            _{{ op.function_name }}_response,
+            result,
+            {{ op.status_code }},
+            {{ ('"' ~ op.response_media_type ~ '"') if op.response_media_type else "None" }},
+        )
 {% else %}
         await self._adapter.{{ op.function_name }}({{ op.handler_call_args | join(", ") }})
         return None, {{ op.status_code }}

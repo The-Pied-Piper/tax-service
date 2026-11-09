@@ -31,3 +31,65 @@ implicit_reexport = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+# Layer rules, checked by `lint-imports` (part of ./dev.sh lint, once app/ exists).
+# Services own these: add contracts as the service grows.
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "layers"
+name = "Layers point inward"
+type = "layers"
+containers = ["app"]
+layers = [
+    "main",
+    "adapters",
+    "application",
+    "domain",
+]
+# Every other module under app must be named here or placed in a layer above, so a new
+# module cannot slip in unchecked: generated is the wire code, settings the configuration.
+exhaustive = true
+exhaustive_ignores = ["generated", "settings"]
+
+[[tool.importlinter.contracts]]
+id = "core-framework-free"
+name = "Domain and application know no framework, wire model or settings"
+type = "forbidden"
+source_modules = ["app.domain", "app.application"]
+forbidden_modules = [
+    "connexion",
+    "pydantic",
+    "pydantic_core",
+    "pydantic_settings",
+    "sqlalchemy",
+    "starlette",
+    "app.generated",
+    "app.settings",
+]
+
+[[tool.importlinter.contracts]]
+id = "outbound-wire-free"
+name = "Outbound adapters import no web framework or wire model directly"
+type = "forbidden"
+source_modules = ["app.adapters.outbound"]
+forbidden_modules = ["connexion", "pydantic", "starlette", "app.generated"]
+# Direct imports only: an outbound adapter may import app.settings, which uses pydantic_settings.
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+id = "adapters-independent"
+name = "Inbound and outbound adapters never import each other"
+type = "independence"
+modules = ["app.adapters.inbound", "app.adapters.outbound"]
+
+[[tool.importlinter.contracts]]
+id = "main-does-not-translate-errors"
+name = "Composition root imports no error type or validation library, so it cannot map errors itself"
+type = "forbidden"
+source_modules = ["app.main"]
+forbidden_modules = ["pydantic", "pydantic_core", "app.domain.errors"]
+# Direct imports only: main reaches these through the adapters it registers.
+allow_indirect_imports = true

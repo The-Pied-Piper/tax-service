@@ -4,11 +4,13 @@ The `project` fixture mimics "Use this template": it copies the template's plain
 files into a temp dir, drops in the example spec, and runs `init` there.
 """
 
+import ast
 import importlib
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -56,6 +58,7 @@ def test_init_writes_expected_layout(project: Path) -> None:
         "app/generated/handlers/__init__.py",
         "app/generated/handlers/widgets.py",
         "app/adapters/inbound/widgets_adapter.py",
+        "app/adapters/inbound/http_errors.py",
         "app/application/ports/widgets_port.py",
         "app/application/services/widgets_service.py",
         "app/application/ports/health.py",
@@ -93,14 +96,33 @@ def test_generated_project_passes_its_own_tests(project: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_generated_project_is_lint_and_type_clean(project: Path) -> None:
+def test_generated_project_is_lint_type_and_layer_clean(project: Path) -> None:
     for cmd in (
         [sys.executable, "-m", "ruff", "check", "."],
         [sys.executable, "-m", "ruff", "format", "--check", "."],
         [sys.executable, "-m", "mypy", "."],
+        [str(Path(sys.executable).parent / "lint-imports")],
     ):
         result = subprocess.run(cmd, cwd=project, capture_output=True, text=True)
         assert result.returncode == 0, " ".join(cmd) + "\n" + result.stdout + result.stderr
+
+
+def test_main_registers_error_handling_but_does_not_define_it(project: Path) -> None:
+    tree = ast.parse((project / "app" / "main.py").read_text())
+    called: set[str] = set()
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            called.add(func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", ""))
+        elif isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+            imported.update(f"{node.module}.{alias.name}" for alias in node.names)
+    assert "register_error_handlers" in called
+    assert "add_error_handler" not in called
+    assert not {name for name in imported if name.startswith("connexion.problem")}
 
 
 def test_full_request_flow(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,6 +133,7 @@ def test_full_request_flow(project: Path, monkeypatch: pytest.MonkeyPatch) -> No
     status_service = importlib.import_module("app.application.services.status_service")
     errors = importlib.import_module("app.domain.errors")
     health = importlib.import_module("app.application.ports.health")
+    models = importlib.import_module("app.generated.models")
 
     class FailingProbe:
         name = "fake"
@@ -122,18 +145,18 @@ def test_full_request_flow(project: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
     class InMemoryWidgets:
         def __init__(self) -> None:
-            self.store: dict[str, dict[str, object]] = {}
+            self.store: dict[str, SimpleNamespace] = {}
+            self.listed: list[tuple[int, object]] = []
 
-        async def list_widgets(self, page_size: int | None = None, cursor: str | None = None):  # type: ignore[no-untyped-def]
-            return {"items": list(self.store.values()), "next_cursor": None}
+        async def list_widgets(self, limit: int, cursor=None):  # type: ignore[no-untyped-def]
+            self.listed.append((limit, cursor))
+            return SimpleNamespace(items=[vars(w) for w in self.store.values()])
 
-        async def create_widget(self, body):  # type: ignore[no-untyped-def]
-            widget = {
-                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                "name": body.name,
-                "weight_grams": body.weight_grams or 0,
-            }
-            self.store[str(widget["id"])] = widget
+        async def create_widget(self, name, weight_grams=None):  # type: ignore[no-untyped-def]
+            widget = SimpleNamespace(
+                id="3fa85f64-5717-4562-b3fc-2c963f66afa6", name=name, weight_grams=weight_grams or 0
+            )
+            self.store[widget.id] = widget
             return widget
 
         async def get_widget(self, widget_id: UUID):  # type: ignore[no-untyped-def]
@@ -145,12 +168,20 @@ def test_full_request_flow(project: Path, monkeypatch: pytest.MonkeyPatch) -> No
         async def delete_widget(self, widget_id: UUID):  # type: ignore[no-untyped-def]
             self.store.pop(str(widget_id), None)
 
+    class PagingWidgetsAdapter(widgets_adapter.WidgetsRequestAdapter):  # type: ignore[name-defined,misc]
+        """An author who maps the optional next_page_token, here as an explicit None."""
+
+        async def list_widgets(self, page_size=None, page_token=None):  # type: ignore[no-untyped-def]
+            page = await super().list_widgets(page_size, page_token)
+            return models.WidgetPage(items=page.items, next_page_token=None)
+
+    widgets_service = InMemoryWidgets()
     monkeypatch.setattr(
         main_mod,
         "build_adapters",
         lambda settings, engine: handlers.Adapters(
             status=status_adapter.StatusRequestAdapter(status_service.StatusService(probes)),
-            widgets=widgets_adapter.WidgetsRequestAdapter(InMemoryWidgets()),
+            widgets=PagingWidgetsAdapter(widgets_service),
         ),
     )
     client = main_mod.create_app().test_client()
@@ -159,14 +190,27 @@ def test_full_request_flow(project: Path, monkeypatch: pytest.MonkeyPatch) -> No
     created = client.post(f"{base}/widgets", json={"name": "bolt", "weightGrams": 12})
     assert created.status_code == 201, created.text
     assert created.json()["weightGrams"] == 12
+    # An optional property that was not set is left out of the response, not sent as null.
+    assert "note" not in created.json()
     widget_id = created.json()["id"]
 
-    assert client.get(f"{base}/widgets/{widget_id}").json()["name"] == "bolt"
-    assert len(client.get(f"{base}/widgets?pageSize=5").json()["items"]) == 1
+    # The 404 declares application/problem+json next to the 200's application/json.
+    fetched = client.get(f"{base}/widgets/{widget_id}")
+    assert fetched.status_code == 200, fetched.text
+    assert fetched.headers["content-type"].startswith("application/json")
+    assert fetched.json()["name"] == "bolt"
+    page = client.get(f"{base}/widgets?pageSize=5").json()
+    assert len(page["items"]) == 1
+    # A property the adapter passed as None stays null: the browser tells null from absent.
+    assert page["nextPageToken"] is None
+    # The application gets a plain limit and a cursor, never the page size or token.
+    assert client.get(f"{base}/widgets").status_code == 200
+    assert widgets_service.listed == [(5, None), (20, None)]
 
     missing = client.get(f"{base}/widgets/00000000-0000-0000-0000-000000000000")
     assert missing.status_code == 404
     assert missing.json()["title"] == "NotFoundError"
+    assert missing.headers["content-type"].startswith("application/problem+json")
 
     malformed = client.get(f"{base}/widgets/not-a-uuid")
     assert malformed.status_code == 400, malformed.text
@@ -187,6 +231,8 @@ def test_full_request_flow(project: Path, monkeypatch: pytest.MonkeyPatch) -> No
 def test_sync_regenerates_but_keeps_user_code(project: Path) -> None:
     adapter = project / "app" / "adapters" / "inbound" / "widgets_adapter.py"
     adapter.write_text("# user edited\n")
+    errors = project / "app" / "adapters" / "inbound" / "http_errors.py"
+    errors.write_text("# user edited\n")
     spec_path = project / "openapi" / "openapi.yml"
     spec = yaml.safe_load(spec_path.read_text())
     spec["paths"]["/ping"] = {
@@ -201,6 +247,7 @@ def test_sync_regenerates_but_keeps_user_code(project: Path) -> None:
     assert main(["--root", str(project), "sync"]) == 0
 
     assert adapter.read_text() == "# user edited\n"
+    assert errors.read_text() == "# user edited\n"
     generated = project / "app" / "generated" / "handlers"
     assert (generated / "health.py").exists()
     assert (project / "app" / "adapters" / "inbound" / "health_adapter.py").exists()

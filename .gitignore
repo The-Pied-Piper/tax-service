@@ -142,6 +142,7 @@ airflow
 
 # mypy
 .mypy_cache/
+.import_linter_cache/
 .dmypy.json
 dmypy.json
 typings
