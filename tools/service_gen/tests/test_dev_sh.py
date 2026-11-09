@@ -26,7 +26,12 @@ def fake_docker(tmp_path: Path) -> Path:
     log = tmp_path / "calls.log"
     docker = tmp_path / "bin" / "docker"
     docker.parent.mkdir()
-    docker.write_text(f'#!/usr/bin/env bash\necho "$*" >> {log}\n')
+    docker.write_text(
+        "#!/usr/bin/env bash\n"
+        # scripts/_lib.sh asks which Docker context is in use; that is not a recorded call.
+        f'if [[ "$1" == context ]]; then echo "${{FAKE_DOCKER_CONTEXT:-default}}"; exit 0; fi\n'
+        f'echo "$*" >> {log}\n'
+    )
     docker.chmod(docker.stat().st_mode | stat.S_IEXEC)
     return log
 
@@ -101,10 +106,12 @@ def test_container_refuses_commands_that_manage_containers(fake_docker: Path, co
 # --- host conveniences: ssh agent and git identity ------------------------------------
 
 
-def lib_env(**extra: str) -> dict[str, str]:
+def lib_env(fake_docker: Path | None = None, **extra: str) -> dict[str, str]:
     """What scripts/_lib.sh leaves exported, for a host with the given environment."""
     keep = ("PATH", "HOME")
     env = {k: v for k, v in os.environ.items() if k in keep}
+    if fake_docker is not None:
+        env["PATH"] = f"{fake_docker.parent / 'bin'}{os.pathsep}{env['PATH']}"
     env.update(extra)
     result = subprocess.run(
         ["bash", "-c", f"source {ROOT}/scripts/_lib.sh; env"],
@@ -123,23 +130,54 @@ def agent_socket(tmp_path: Path) -> Path:
     return sock_path
 
 
-@pytest.mark.skipif(os.uname().sysname == "Darwin", reason="macOS uses Docker Desktop's fixed path")
-def test_host_ssh_agent_socket_is_left_for_compose_to_mount(tmp_path: Path) -> None:
-    env = lib_env(SSH_AUTH_SOCK=str(agent_socket(tmp_path)))
-
-    assert "SSH_AGENT_SOCKET" not in env
+DOCKER_DESKTOP_SOCKET = "/run/host-services/ssh-auth.sock"
 
 
-@pytest.mark.skipif(os.uname().sysname == "Darwin", reason="macOS uses Docker Desktop's fixed path")
-def test_no_ssh_agent_mounts_a_placeholder() -> None:
-    assert lib_env()["SSH_AGENT_SOCKET"] == "/dev/null"
-    assert lib_env(SSH_AUTH_SOCK="/nonexistent/agent.sock")["SSH_AGENT_SOCKET"] == "/dev/null"
+@pytest.mark.skipif(
+    os.uname().sysname == "Darwin", reason="macOS always uses Docker Desktop's path"
+)
+def test_native_engine_gets_the_host_agent_socket(tmp_path: Path, fake_docker: Path) -> None:
+    sock = agent_socket(tmp_path)
+
+    env = lib_env(fake_docker, SSH_AUTH_SOCK=str(sock))
+
+    assert env["SSH_AGENT_SOCKET"] == str(sock)
 
 
-def test_ssh_agent_sharing_can_be_turned_off(tmp_path: Path) -> None:
-    env = lib_env(SSH_AUTH_SOCK=str(agent_socket(tmp_path)), DEV_SSH_AGENT="0")
+def test_docker_desktop_gets_its_own_agent_socket(tmp_path: Path, fake_docker: Path) -> None:
+    env = lib_env(
+        fake_docker,
+        SSH_AUTH_SOCK=str(agent_socket(tmp_path)),
+        FAKE_DOCKER_CONTEXT="desktop-linux",
+    )
+
+    assert env["SSH_AGENT_SOCKET"] == DOCKER_DESKTOP_SOCKET
+
+
+@pytest.mark.skipif(
+    os.uname().sysname == "Darwin", reason="macOS always uses Docker Desktop's path"
+)
+def test_no_ssh_agent_mounts_a_placeholder(fake_docker: Path) -> None:
+    assert lib_env(fake_docker)["SSH_AGENT_SOCKET"] == "/dev/null"
+    stale = lib_env(fake_docker, SSH_AUTH_SOCK="/nonexistent/agent.sock")
+    assert stale["SSH_AGENT_SOCKET"] == "/dev/null"
+
+
+def test_ssh_agent_sharing_can_be_turned_off(tmp_path: Path, fake_docker: Path) -> None:
+    env = lib_env(
+        fake_docker,
+        SSH_AUTH_SOCK=str(agent_socket(tmp_path)),
+        FAKE_DOCKER_CONTEXT="desktop-linux",
+        DEV_SSH_AGENT="0",
+    )
 
     assert env["SSH_AGENT_SOCKET"] == "/dev/null"
+
+
+def test_an_explicit_agent_socket_is_kept(fake_docker: Path) -> None:
+    env = lib_env(fake_docker, SSH_AGENT_SOCKET="/tmp/mine.sock", DEV_SSH_AGENT="0")
+
+    assert env["SSH_AGENT_SOCKET"] == "/tmp/mine.sock"
 
 
 def test_git_identity_comes_from_host_git_config(tmp_path: Path) -> None:
@@ -162,8 +200,8 @@ def has_docker_compose() -> bool:
     ("env", "source"),
     [
         ({}, "/dev/null"),
-        ({"SSH_AUTH_SOCK": "/tmp/a:b/agent.sock"}, "/tmp/a:b/agent.sock"),
-        ({"SSH_AUTH_SOCK": "/tmp/x.sock", "SSH_AGENT_SOCKET": "/tmp/y.sock"}, "/tmp/y.sock"),
+        ({"SSH_AUTH_SOCK": "/run/user/1000/gcr/ssh"}, "/dev/null"),
+        ({"SSH_AGENT_SOCKET": "/tmp/a:b/agent.sock"}, "/tmp/a:b/agent.sock"),
     ],
 )
 def test_compose_mounts_the_agent_socket(env: dict[str, str], source: str) -> None:

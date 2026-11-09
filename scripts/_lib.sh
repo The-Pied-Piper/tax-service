@@ -7,10 +7,11 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 export UID GID="$(id -g)"
 
 # Host conveniences for the app container. Your git identity is passed through
-# (compose.yaml names the variables). compose.yaml also mounts your ssh agent's
-# socket from SSH_AGENT_SOCKET, else SSH_AUTH_SOCK; we only set SSH_AGENT_SOCKET
-# where that default is wrong. On macOS it assumes Docker Desktop's agent socket
-# path (untested elsewhere). DEV_SSH_AGENT=0 turns the sharing off.
+# (compose.yaml names the variables). compose.yaml mounts the ssh agent socket
+# named by SSH_AGENT_SOCKET, else an empty placeholder. We pick the socket the
+# container engine can see: Docker Desktop (macOS, or a desktop-* context)
+# exposes the host agent at a fixed path inside its VM (untested here); a native
+# engine can mount $SSH_AUTH_SOCK itself. DEV_SSH_AGENT=0 turns the sharing off.
 git_identity() { git config "user.$1" 2>/dev/null || true; }
 name="$(git_identity name)"; email="$(git_identity email)"
 if [[ -n "$name" ]]; then
@@ -20,12 +21,17 @@ if [[ -n "$email" ]]; then
     export GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-$email}" GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-$email}"
 fi
 unset name email
-if [[ "${DEV_SSH_AGENT:-1}" == 0 ]]; then
-    export SSH_AGENT_SOCKET=/dev/null
-elif [[ "$(uname -s)" == Darwin ]]; then
-    export SSH_AGENT_SOCKET=/run/host-services/ssh-auth.sock
-elif [[ ! -S "${SSH_AUTH_SOCK:-}" ]]; then
-    export SSH_AGENT_SOCKET=/dev/null
+if [[ -z "${SSH_AGENT_SOCKET:-}" ]]; then
+    agent_socket=
+    if [[ "${DEV_SSH_AGENT:-1}" != 0 && "${IN_APP_CONTAINER:-}" != 1 ]]; then
+        if [[ "$(uname -s)" == Darwin || "$(docker context show 2>/dev/null || true)" == desktop-* ]]; then
+            agent_socket=/run/host-services/ssh-auth.sock
+        elif [[ -S "${SSH_AUTH_SOCK:-}" ]]; then
+            agent_socket="$SSH_AUTH_SOCK"
+        fi
+    fi
+    export SSH_AGENT_SOCKET="${agent_socket:-/dev/null}"
+    unset agent_socket
 fi
 
 # compose.yaml sets IN_APP_CONTAINER=1 on the app service. Inside it (e.g. a VS
