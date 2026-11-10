@@ -33,10 +33,11 @@ Settings are read from the environment with the `APP_` prefix (see
 `app/settings.py`); `compose.yaml` sets `APP_DATABASE_URL` for the dev database.
 Copy `.env.example` to `.env` to change host ports or the log level.
 
-`APP_CORS_ALLOWED_ORIGINS` lists the website origins (comma-separated, `scheme://host[:port]`,
-no path, no `*`, no IPv6 literal; internationalised names in `xn--` form) the browser may call the API from. It is empty by default, so each deployed
-environment must set it (for example `https://aftertaxlens.com`); compose allows
-`http://localhost:5173` for local development. A malformed value stops the app at startup.
+`APP_CORS_ALLOWED_ORIGINS` lists the website origins the browser may call the API from:
+comma-separated `scheme://host[:port]`, no path, no `*`, no IPv6 literal, internationalised
+names in `xn--` form. It is empty by default, so each deployed environment must set it (for
+example `https://aftertaxlens.com`); compose allows `http://localhost:5173` for local
+development. A malformed value stops the app at startup.
 
 ## Layout
 
