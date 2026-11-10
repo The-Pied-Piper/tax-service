@@ -26,14 +26,17 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload
 FROM base AS prod
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 RUN useradd --system --no-create-home --shell /usr/sbin/nologin app
+# AWS Lambda Web Adapter: on Lambda it forwards each request to uvicorn on 8080;
+# anywhere else the file is never run, so this is the same image as before.
+# Pinned by digest (a tag can be moved); it runs inside every invocation and sees every request.
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1@sha256:46d6625e68cbbdd2efab4a20245977664513f13ffef47915b000d431adcea0b4 /lambda-adapter /opt/extensions/lambda-adapter
+# The app serves readiness under the spec's /api/v1 prefix. (tax-infra sets the same
+# variable on the function and must use this path too.)
+ENV AWS_LWA_READINESS_CHECK_PATH=/api/v1/status/readyz
 COPY openapi ./openapi
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
-# AWS Lambda Web Adapter: on Lambda it forwards each request to uvicorn on 8080;
-# anywhere else the file is never run, so this is the same image as before.
-# The infra module sets AWS_LWA_PORT and the readiness path (/status/readyz).
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
 USER app
 EXPOSE 8080
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

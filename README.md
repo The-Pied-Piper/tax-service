@@ -58,9 +58,10 @@ requirements.txt               runtime deps; requirements-dev.txt adds test/lint
 Dockerfile                     `dev` target (tools, bind mount) and `prod` target (slim)
 compose.yaml                   app + postgres:16
 dev.sh, scripts/               dev.sh dispatches to scripts/<command>.sh
-service_scripts/               this service's own commands (lint-api, spec-lint)
+service_scripts/               this service's own commands (lint-api, spec-lint, push-image)
 tools/service_gen/             the code generator (template-owned; see Upgrading)
 .github/workflows/ci.yml       GitHub Actions: ./dev.sh check + prod image build (template-owned)
+.github/workflows/publish-image.yml  pushes the prod image to ECR on merge to main (service-owned)
 ```
 
 Request flow: `Connexion -> generated handler -> request adapter -> port -> service -> domain`.
@@ -91,15 +92,28 @@ A tag whose operations are all named like liveness/readiness probes (`livez`,
 service instead of 501 stubs: liveness always returns a `Health` (status `ok`),
 which the status adapter maps to the response; readiness runs every
 `ReadinessProbe` from `build_adapters()` in `main.py` and answers 503 on the
-first failure. `DatabaseProbe` (`SELECT 1`) exists but is not wired in this service, which uses no
-database (on Lambda there is none to reach); add a probe per external dependency.
+first failure. `DatabaseProbe` (`SELECT 1`) exists but is not wired in this service, which has
+no external dependency to check; add a probe per dependency.
 
 ## Publishing the image
 
-The production image (the `prod` stage of the Dockerfile) also runs on AWS Lambda: it carries the AWS Lambda Web Adapter, which does nothing outside Lambda. Images go to the private ECR repository `tax-service-<env>` that [tax-infra](https://github.com/The-Pied-Piper/tax-infra) creates, tagged with the 12-character commit id.
+The production image (the `prod` stage of the Dockerfile) also runs on AWS
+Lambda: it carries the AWS Lambda Web Adapter, which does nothing outside Lambda.
+Images go to the private ECR repository `tax-service-<env>` that
+[tax-infra](https://github.com/The-Pied-Piper/tax-infra) creates, tagged with the
+12-character commit id. The adapter is pinned by digest.
 
-- By hand, from a clean checkout with AWS credentials for the target account: `./dev.sh push-image dev <account-id>`. It prints the `image_tag` to set in tax-infra.
-- From CI: `.github/workflows/publish-image.yml` runs the same command on every merge to main, through an OIDC role. It stays off until the repository variables `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV` are set.
+- By hand, from a clean checkout with AWS credentials for the target account:
+  `./dev.sh push-image dev <account-id>`. It builds from the committed files and
+  prints the `image_tag` to set in tax-infra.
+- From CI: `.github/workflows/publish-image.yml` runs the same command on every
+  merge to main, through an OIDC role. It stays off until the repository variables
+  `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV` are set.
+
+The role (tax-infra) must trust only this repository's `main` branch (an exact
+`sub` of `repo:The-Pied-Piper/tax-service:ref:refs/heads/main`, audience
+`sts.amazonaws.com`), live in the dev account, and be allowed to push and
+describe images in `tax-service-dev` only.
 
 ## Upgrading the template
 

@@ -1,9 +1,11 @@
 name: Publish image
 
 # Builds the production image and pushes it to the dev ECR repository on every
-# merge to main, using a short-lived OIDC role (no stored keys). It does nothing
-# until the repository variables AWS_ACCOUNT_ID_DEV and AWS_ECR_PUSH_ROLE_ARN_DEV
-# are set, which happens once tax-infra has created the ECR repository and the role.
+# merge to main (main only takes pull requests with green CI), using a short-lived
+# OIDC role (no stored keys). It does nothing until the repository variables
+# AWS_ACCOUNT_ID_DEV and AWS_ECR_PUSH_ROLE_ARN_DEV are set, which happens once
+# tax-infra has created the ECR repository and the role.
+# Actions are pinned by commit; Dependabot (github-actions) keeps the tags in the comments current.
 
 on:
   push:
@@ -20,20 +22,25 @@ concurrency:
 jobs:
   publish:
     # Variables, not secrets: account ids and role ARNs are not secret.
-    if: ${{ vars.AWS_ACCOUNT_ID_DEV != '' && vars.AWS_ECR_PUSH_ROLE_ARN_DEV != '' }}
+    # main only, also for a manual run: the role trusts nothing else.
+    if: ${{ github.ref == 'refs/heads/main' && vars.AWS_ACCOUNT_ID_DEV != '' && vars.AWS_ECR_PUSH_ROLE_ARN_DEV != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_ECR_PUSH_ROLE_ARN_DEV }}
+          role-session-name: tax-service-publish-${{ github.run_id }}
+          role-duration-seconds: 900
           aws-region: ca-central-1
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # The same command as pushing by hand.
       - name: Push the image

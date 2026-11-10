@@ -34,15 +34,14 @@ SPEC_PATH = Path(__file__).resolve().parent.parent / "openapi" / "openapi.yml"
 def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     """Construct outbound adapters -> services -> inbound request adapters.
 
-    Repositories take a session factory from `create_session_factory(engine)`
-    and are passed into the services they back.
+    This service has no database-backed repositories yet: `engine` is unused and
+    stays only because `create_app` and its test seam keep the template's shape.
     """
-    # No probes: this service keeps no state and uses no database, and on Lambda there
-    # is none to reach, so a DatabaseProbe would hold /status/readyz at 503 for ever.
-    # Pass probes here (the empty tuple below) when the service gains a dependency worth checking.
+    # No readiness probes: this service has no external dependency to check. Name
+    # them in `StatusService(probes=...)` when it gains one.
     return Adapters(
         jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
-        status=StatusRequestAdapter(StatusService(())),
+        status=StatusRequestAdapter(StatusService(probes=())),
         take_home_calculations=TakeHomeCalculationsRequestAdapter(
             TakeHomeCalculationsService(TaxEngineDeductions())
         ),
