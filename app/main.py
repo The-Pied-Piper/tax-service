@@ -73,12 +73,15 @@ def create_app(
         validate_responses=settings.validate_responses,
     )
     http_errors.register_error_handlers(app)
-    if settings.cors_origins:
-        # Browser access from the website's own origins only; the API has no cookies or credentials.
+    if settings.cors_allowed_origins:
+        # Browser access from the website's own origins only. Methods and headers match the
+        # spec today (GET/POST, no header parameters); revisit them with any new operation
+        # or auth. Credentials stay off, and no response header is exposed to page scripts.
         app.add_middleware(
             CORSMiddleware,
             position=MiddlewarePosition.BEFORE_EXCEPTION,
-            allow_origins=settings.cors_origins,
+            allow_origins=settings.cors_allowed_origins,
+            allow_credentials=False,
             allow_methods=["GET", "POST"],
             allow_headers=["Content-Type"],
         )
