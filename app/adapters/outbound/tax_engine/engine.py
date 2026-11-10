@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
-from typing import Protocol
+from typing import Any, Protocol
 
 from tax_engine import build_tax_computation
 from tax_engine.adapters.inbound.trace_english import EnglishTraceRenderer
@@ -47,6 +47,12 @@ class Engine(Protocol):
     ) -> Mapping[str, Sequence[Worksheet]]: ...
 
 
+class Renderer(Protocol):
+    """The part of tax-engine's trace renderer this adapter uses."""
+
+    def render(self, line: Any) -> str: ...
+
+
 def _present(text: str | None) -> str | None:
     """The text, or None when there is none (the engine may give nothing or an empty string)."""
     return text or None
@@ -55,10 +61,10 @@ def _present(text: str | None) -> str | None:
 class TaxEngineDeductions:
     """Implements DeductionsCalculator with tax-engine; only English text is available."""
 
-    def __init__(self, engine: Engine | None = None) -> None:
+    def __init__(self, engine: Engine | None = None, renderer: Renderer | None = None) -> None:
         self._engine = build_tax_computation() if engine is None else engine
         self._kinds = artifact_kinds()
-        self._renderer = EnglishTraceRenderer()
+        self._renderer = EnglishTraceRenderer() if renderer is None else renderer
 
     async def calculate(
         self,
@@ -109,14 +115,16 @@ class TaxEngineDeductions:
                     lines = tuple(
                         TraceEntry(
                             label=line.label,
-                            name=_present(line.label and sheet.title(line.label)),
-                            reference=_present(line.label and sheet.reference(line.label)),
+                            name=_present(None if line.label is None else sheet.title(line.label)),
+                            reference=_present(
+                                None if line.label is None else sheet.reference(line.label)
+                            ),
                             amount=line.amount,
                             text=self._renderer.render(line),
                         )
                         for line in sheet.trace
                     )
-                    trace.append(FormTrace(form, _present(sheet.form_title), lines))
+                    trace.append(FormTrace(form=form, name=_present(sheet.form_title), lines=lines))
         return Deductions(
             figures=tuple(DeductionFigure(item, figure(item)) for item in items),
             trace=tuple(trace),

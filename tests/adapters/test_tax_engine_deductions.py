@@ -69,10 +69,10 @@ class FakeSheet:
     trace = (SimpleNamespace(label=None, amount=Decimal("1.00")),)
 
     def title(self, label: str) -> str:
-        return ""
+        raise AssertionError("asked for the title of a line with no label")
 
     def reference(self, label: str) -> str:
-        return ""
+        raise AssertionError("asked for the reference of a line with no label")
 
 
 class FakeEngine:
@@ -81,8 +81,7 @@ class FakeEngine:
 
 
 async def test_what_the_engine_does_not_title_is_absent() -> None:
-    calculator = TaxEngineDeductions(FakeEngine())
-    calculator._renderer = SimpleNamespace(render=lambda line: "one")  # type: ignore[assignment]
+    calculator = TaxEngineDeductions(FakeEngine(), SimpleNamespace(render=lambda line: "one"))
     deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", (), True)
     (form,) = deductions.trace
     assert (form.form, form.name) == ("ex/form", None)
