@@ -2,7 +2,7 @@
 """Health checks for the ``{{ tag.name }}`` tag. Implements {{ tag.pascal }}Port.
 
 Liveness always succeeds. Readiness runs every probe handed over by `main.py` and
-fails with HTTP 503 (NotReadyError) on the first unavailable dependency.
+fails with NotReadyError on the first unavailable dependency.
 `service-gen sync` never overwrites this file.
 """
 
@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from {{ package }}.application.ports.health import ReadinessProbe
+from {{ package }}.application.ports.health import {% if tag.operations | selectattr("response_type") | list %}Health, {% endif %}ReadinessProbe
 
 
 class {{ tag.pascal }}Service:
@@ -30,7 +30,7 @@ class {{ tag.pascal }}Service:
             await probe.check()
 {% endif %}
 {% if op.response_type %}
-        return {"status": "ok"}
+        return Health(status="ok")
 {% else %}
         return None
 {% endif %}
@@ -38,7 +38,7 @@ class {{ tag.pascal }}Service:
 {% else %}
 """Business logic for the ``{{ tag.name }}`` tag. Implements {{ tag.pascal }}Port.
 
-Unimplemented operations surface as HTTP 501 until you fill them in.
+Unimplemented operations raise NotImplementedError until you fill them in.
 `service-gen sync` never overwrites this file.
 """
 

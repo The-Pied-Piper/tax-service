@@ -7,50 +7,54 @@ adapters (databases, clients) here, never inside the domain or application layer
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from connexion import AsyncApp
-from connexion.lifecycle import ConnexionRequest, ConnexionResponse
-from connexion.problem import problem
+from connexion.middleware import MiddlewarePosition
 from connexion.resolver import Resolver
-from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
+from starlette.middleware.cors import CORSMiddleware
 
+from app.adapters.inbound import http_errors
+from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
 from app.adapters.inbound.status_adapter import StatusRequestAdapter
-from app.adapters.outbound.db import DatabaseProbe, create_engine
-from app.application.ports.health import NotReadyError
+from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
+from app.adapters.outbound.db import create_engine
+from app.adapters.outbound.tax_engine import TaxEngineDeductions
+from app.application.services.jurisdictions_service import JurisdictionsService
 from app.application.services.status_service import StatusService
-from app.domain.errors import ConflictError, DomainError, NotFoundError, ValidationError
+from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.generated.handlers import Adapters, build_operations
 from app.settings import Settings
 
 SPEC_PATH = Path(__file__).resolve().parent.parent / "openapi" / "openapi.yml"
 
-# Most specific first; DomainError is the fallback.
-_DOMAIN_ERROR_STATUS: dict[type[DomainError], int] = {
-    NotFoundError: 404,
-    ConflictError: 409,
-    ValidationError: 422,
-    DomainError: 400,
-}
-
 
 def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     """Construct outbound adapters -> services -> inbound request adapters.
 
-    Repositories take a session factory from `create_session_factory(engine)`
-    and are passed into the services they back.
+    This service has no database-backed repositories yet: `engine` is unused and
+    stays only because `create_app` and its test seam keep the template's shape.
     """
-    probes = [DatabaseProbe(engine)]
+    # No readiness probes: this service has no external dependency to check. Name
+    # them in `StatusService(probes=...)` when it gains one.
     return Adapters(
-        status=StatusRequestAdapter(StatusService(probes)),
+        jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
+        status=StatusRequestAdapter(StatusService(probes=())),
+        take_home_calculations=TakeHomeCalculationsRequestAdapter(
+            TakeHomeCalculationsService(TaxEngineDeductions())
+        ),
     )
 
 
-def create_app(settings: Settings | None = None) -> AsyncApp:
+def create_app(
+    settings: Settings | None = None,
+    build: Callable[[Settings, AsyncEngine], Adapters] = build_adapters,
+) -> AsyncApp:
+    """The ASGI app; `build` replaces the wiring of `build_adapters` (a test seam)."""
     settings = settings or Settings()
     logging.basicConfig(level=settings.log_level)
     engine = create_engine(settings)
@@ -60,7 +64,7 @@ def create_app(settings: Settings | None = None) -> AsyncApp:
         yield
         await engine.dispose()
 
-    operations = build_operations(build_adapters(settings, engine))
+    operations = build_operations(build(settings, engine))
     app = AsyncApp(__name__, lifespan=lifespan)
     app.add_api(
         SPEC_PATH,
@@ -69,33 +73,20 @@ def create_app(settings: Settings | None = None) -> AsyncApp:
         strict_validation=True,
         validate_responses=settings.validate_responses,
     )
-    app.add_error_handler(DomainError, _domain_error)
-    app.add_error_handler(PydanticValidationError, _bad_request)
-    app.add_error_handler(NotReadyError, _not_ready)
-    app.add_error_handler(NotImplementedError, _not_implemented)
+    http_errors.register_error_handlers(app)
+    if settings.cors_allowed_origins:
+        # Browser access from the website's own origins only. Methods and headers match the
+        # spec today (GET/POST, no header parameters); revisit them with any new operation
+        # or auth. Credentials stay off, and no response header is exposed to page scripts.
+        app.add_middleware(
+            CORSMiddleware,
+            position=MiddlewarePosition.BEFORE_EXCEPTION,
+            allow_origins=settings.cors_allowed_origins,
+            allow_credentials=False,
+            allow_methods=["GET", "POST"],
+            allow_headers=["Content-Type"],
+        )
     return app
-
-
-def _domain_error(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
-    status = next(code for cls, code in _DOMAIN_ERROR_STATUS.items() if isinstance(exc, cls))
-    return problem(status=status, title=type(exc).__name__, detail=str(exc))
-
-
-def _bad_request(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
-    """Handler-level coercion failed (e.g. a path param that is not a valid UUID)."""
-    assert isinstance(exc, PydanticValidationError)
-    detail = "; ".join(
-        f"{'.'.join(map(str, e['loc'])) or 'value'}: {e['msg']}" for e in exc.errors()
-    )
-    return problem(status=400, title="Bad Request", detail=detail)
-
-
-def _not_ready(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
-    return problem(status=503, title="Service Unavailable", detail=str(exc))
-
-
-def _not_implemented(request: ConnexionRequest, exc: Exception) -> ConnexionResponse:
-    return problem(status=501, title="Not Implemented", detail=str(exc))
 
 
 app = create_app()

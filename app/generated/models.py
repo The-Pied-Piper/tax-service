@@ -13,3 +13,159 @@ class StatusOutput(BaseModel):
         populate_by_name=True,
     )
     status: Annotated[str, Field(examples=["ok"])]
+
+
+class ComputeTakeHomeCalculationRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    jurisdiction_code: Annotated[
+        str,
+        Field(
+            description="ISO 3166 code, upper case.",
+            examples=["CA-ON"],
+            pattern="^[A-Z]{2}(-[A-Z0-9]{1,3})?$",
+        ),
+    ]
+    year: Annotated[int, Field(description="Tax year.", examples=[2025])]
+    salary: Annotated[
+        str,
+        Field(
+            description="Gross yearly salary, above 0 and below 1e15, up to two decimals.",
+            examples=["70000.00"],
+            pattern="^(0*[1-9][0-9]*|[0-9]+\\.[0-9]{1,2})$",
+        ),
+    ]
+    language_code: Annotated[
+        str | None,
+        Field(
+            description="Language of trace and error text. Only en is supported.", examples=["en"]
+        ),
+    ] = "en"
+    include_trace: Annotated[bool | None, Field(description="Include the trace of every step.")] = (
+        False
+    )
+
+
+class TraceLine(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    label: Annotated[
+        str | None,
+        Field(
+            description="The figure's label, unique per figure in a form; null if none.",
+            examples=["t2204_line_16"],
+        ),
+    ] = None
+    name: Annotated[
+        str | None,
+        Field(
+            description="Display name of the figure, in English; null if none is known.",
+            examples=["Ontario surtax"],
+        ),
+    ] = None
+    reference: Annotated[
+        str | None,
+        Field(
+            description="What the form prints beside the figure (for example its line number); null for a step the form does not print.",
+            examples=["68"],
+        ),
+    ] = None
+    amount: Annotated[str | None, Field(examples=["1077.48"])] = None
+    text: Annotated[str, Field(description="Explanation in the requested language.")]
+
+
+class JurisdictionYear(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    year: Annotated[int, Field(examples=[2025])]
+    provisional: Annotated[bool, Field(examples=[False])]
+
+
+class Error(BaseModel):
+    """
+    Problem details, RFC 9457.
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    type: Annotated[
+        str,
+        Field(
+            description="Identifies the kind of problem.",
+            examples=["https://tax-service.example/problems/unsupported-jurisdiction"],
+        ),
+    ]
+    title: Annotated[str, Field(examples=["Unsupported jurisdiction"])]
+    status: Annotated[int, Field(examples=[400], ge=100, le=599)]
+    detail: Annotated[str, Field(examples=["jurisdiction_code CA-AB is not supported yet"])]
+    field: Annotated[
+        str | None,
+        Field(
+            description="Request field at fault, when there is one.", examples=["jurisdiction_code"]
+        ),
+    ] = None
+
+
+class FormTrace(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    form: Annotated[
+        str,
+        Field(
+            description="Identifier of the form; opaque, to be compared and not parsed.",
+            examples=["ca/schedule_8"],
+        ),
+    ]
+    name: Annotated[
+        str,
+        Field(
+            description="Display name of the form, in English; the identifier when the calculator gives none.",
+            examples=["Schedule 8"],
+        ),
+    ]
+    lines: list[TraceLine]
+
+
+class Jurisdiction(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    code: Annotated[str, Field(examples=["CA-ON"])]
+    name: Annotated[
+        str,
+        Field(description="Display name of the jurisdiction, in English.", examples=["Ontario"]),
+    ]
+    years: list[JurisdictionYear]
+
+
+class ComputeTakeHomeCalculationResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    salary: Annotated[str, Field(examples=["70000.00"])]
+    total_deductions: Annotated[
+        str, Field(description="Contributions and tax together.", examples=["16531.32"])
+    ]
+    take_home: Annotated[
+        str, Field(description="Salary minus total deductions.", examples=["53468.68"])
+    ]
+    provisional: Annotated[
+        bool, Field(description="True when the year's figures are provisional.", examples=[False])
+    ]
+    trace: Annotated[
+        list[FormTrace] | None,
+        Field(description="Present only when include_trace is true; one entry per form."),
+    ] = None
+
+
+class ListJurisdictionsResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    jurisdictions: list[Jurisdiction]
+    next_page_token: Annotated[str, Field(description="Empty when there are no more results.")]

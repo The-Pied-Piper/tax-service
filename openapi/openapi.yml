@@ -2,22 +2,26 @@ openapi: "3.0.3"
 info:
   title: Tax Service
   version: 1.0.0
-  description: Take-home pay and income tax calculations, built on tax-engine.
+  description: >
+    Take-home pay calculations. Draft contract for sign-off; nothing is stored.
   contact:
-    name: Tax Service on GitHub
-    url: https://github.com/The-Pied-Piper/tax-service
+    name: Tax Service
 servers:
   - url: http://localhost:8000/api/v1
     description: local
 tags:
   - name: Status
     description: Liveness and readiness probes.
+  - name: TakeHomeCalculations
+    description: Take-home pay for a gross salary.
+  - name: Jurisdictions
+    description: Where a calculation can be run.
 paths:
   /status/livez:
     get:
       tags: [Status]
       summary: Check liveness of application.
-      description: Returns 200 while the process is running. It does not check any dependency.
+      description: Returns 200 while the process is alive.
       operationId: getLivez
       responses:
         "200":
@@ -30,7 +34,7 @@ paths:
     get:
       tags: [Status]
       summary: Check readiness of application.
-      description: Returns 200 when the application is ready to serve requests.
+      description: Returns 200 when the app can serve requests.
       operationId: getReadyz
       responses:
         "200":
@@ -39,7 +43,62 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatusOutput"
+  /jurisdictions:
+    get:
+      tags: [Jurisdictions]
+      summary: List supported jurisdictions and tax years.
+      description: Hardcoded list for now; one page.
+      operationId: listJurisdictions
+      parameters:
+        - name: max_page_size
+          in: query
+          description: Maximum number of results per page.
+          schema: {type: integer, minimum: 1}
+        - name: page_token
+          in: query
+          description: Token from a previous response's next_page_token.
+          schema: {type: string}
+      responses:
+        "200":
+          description: Supported jurisdictions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJurisdictionsResponse"
+        "400":
+          $ref: "#/components/responses/InvalidArgument"
+  /take-home-calculations:compute:
+    post:
+      tags: [TakeHomeCalculations]
+      summary: Compute take-home pay for a gross salary.
+      description: >
+        Computes take-home pay for a single filer from a gross yearly salary.
+        Nothing is stored. Take-home is the salary minus total deductions
+        (contributions and tax).
+      operationId: computeTakeHomeCalculation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComputeTakeHomeCalculationRequest"
+      responses:
+        "200":
+          description: The computed figures.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComputeTakeHomeCalculationResponse"
+        "400":
+          $ref: "#/components/responses/InvalidArgument"
 components:
+  responses:
+    InvalidArgument:
+      description: A request value is invalid or not supported.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     StatusOutput:
       type: object
@@ -48,3 +107,148 @@ components:
         status:
           type: string
           example: ok
+    ComputeTakeHomeCalculationRequest:
+      type: object
+      required: [jurisdiction_code, year, salary]
+      properties:
+        jurisdiction_code:
+          type: string
+          description: ISO 3166 code, upper case.
+          pattern: "^[A-Z]{2}(-[A-Z0-9]{1,3})?$"
+          example: CA-ON
+        year:
+          type: integer
+          description: Tax year.
+          example: 2025
+        salary:
+          type: string
+          description: Gross yearly salary, above 0 and below 1e15, up to two decimals.
+          pattern: '^(0*[1-9][0-9]*|[0-9]+\.[0-9]{1,2})$'
+          example: "70000.00"
+        language_code:
+          type: string
+          description: Language of trace and error text. Only en is supported.
+          default: en
+          example: en
+        include_trace:
+          type: boolean
+          description: Include the trace of every step.
+          default: false
+    ComputeTakeHomeCalculationResponse:
+      type: object
+      required: [salary, total_deductions, take_home, provisional]
+      properties:
+        salary: {type: string, example: "70000.00"}
+        total_deductions:
+          type: string
+          description: Contributions and tax together.
+          example: "16531.32"
+        take_home:
+          type: string
+          description: Salary minus total deductions.
+          example: "53468.68"
+        provisional:
+          type: boolean
+          description: True when the year's figures are provisional.
+          example: false
+        trace:
+          type: array
+          description: Present only when include_trace is true; one entry per form.
+          items:
+            $ref: "#/components/schemas/FormTrace"
+    FormTrace:
+      type: object
+      required: [form, name, lines]
+      properties:
+        form:
+          type: string
+          description: Identifier of the form; opaque, to be compared and not parsed.
+          example: ca/schedule_8
+        name:
+          type: string
+          description: Display name of the form, in English; the identifier when the calculator gives none.
+          example: Schedule 8
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceLine"
+    TraceLine:
+      type: object
+      required: [text]
+      properties:
+        label:
+          type: string
+          nullable: true
+          description: The figure's label, unique per figure in a form; null if none.
+          example: t2204_line_16
+        name:
+          type: string
+          nullable: true
+          description: Display name of the figure, in English; null if none is known.
+          example: Ontario surtax
+        reference:
+          type: string
+          nullable: true
+          description: What the form prints beside the figure (for example its line number); null for a step the form does not print.
+          example: "68"
+        amount:
+          type: string
+          example: "1077.48"
+        text:
+          type: string
+          description: Explanation in the requested language.
+    ListJurisdictionsResponse:
+      type: object
+      required: [jurisdictions, next_page_token]
+      properties:
+        jurisdictions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Jurisdiction"
+        next_page_token:
+          type: string
+          description: Empty when there are no more results.
+    Jurisdiction:
+      type: object
+      required: [code, name, years]
+      properties:
+        code: {type: string, example: CA-ON}
+        name:
+          type: string
+          description: Display name of the jurisdiction, in English.
+          example: Ontario
+        years:
+          type: array
+          items:
+            $ref: "#/components/schemas/JurisdictionYear"
+    JurisdictionYear:
+      type: object
+      required: [year, provisional]
+      properties:
+        year: {type: integer, example: 2025}
+        provisional: {type: boolean, example: false}
+    Error:
+      type: object
+      description: Problem details, RFC 9457.
+      required: [type, title, status, detail]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: Identifies the kind of problem.
+          example: "https://tax-service.example/problems/unsupported-jurisdiction"
+        title:
+          type: string
+          example: Unsupported jurisdiction
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+          example: 400
+        detail:
+          type: string
+          example: "jurisdiction_code CA-AB is not supported yet"
+        field:
+          type: string
+          description: Request field at fault, when there is one.
+          example: jurisdiction_code
