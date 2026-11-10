@@ -29,18 +29,6 @@ from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEn
 
 ENGLISH = "en"
 
-# The display name of each form that can appear in a trace; a form not listed shows its identifier.
-FORM_NAMES = {
-    "ca/schedule_8": "Schedule 8",
-    "ca/schedule_6": "Schedule 6",
-    "ca/t2204": "T2204",
-    "ca/t1_taxable_income": "T1 taxable income",
-    "ca/t1_tax_and_credits": "T1 tax and credits",
-    "ca-on/on428": "ON428",
-    "ca-on/on428_a": "ON428-A",
-    "ca-on/return": "Ontario return",
-}
-
 # Each deduction item to the engine's (form, kind) that holds its figure.
 FIGURES = {
     "cpp_base": ("ca/schedule_8", "ca/schedule_8_cpp_base_contributions_on_return"),
@@ -116,12 +104,13 @@ class TaxEngineDeductions:
                     lines = tuple(
                         TraceEntry(
                             label=line.label,
+                            name=None if line.label is None else sheet.title(line.label),
                             amount=line.amount,
                             text=self._renderer.render(line),
                         )
                         for line in sheet.trace
                     )
-                    name = FORM_NAMES.get(form, form)
+                    name = sheet.form_title or form
                     trace.append(FormTrace(form=form, name=name, lines=lines))
         return Deductions(
             figures=tuple(DeductionFigure(item, figure(item)) for item in items),

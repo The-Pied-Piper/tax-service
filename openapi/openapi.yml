@@ -166,7 +166,7 @@ components:
           example: ca/schedule_8
         name:
           type: string
-          description: Display name of the form, in English; the identifier when none is known.
+          description: Display name of the form, in English; the identifier when the calculator gives none.
           example: Schedule 8
         lines:
           type: array
@@ -181,6 +181,11 @@ components:
           nullable: true
           description: The figure's label, unique per figure in a form; null if none.
           example: t2204_line_16
+        name:
+          type: string
+          nullable: true
+          description: Display name of the figure, in English; null if none is known.
+          example: Ontario surtax
         amount:
           type: string
           example: "1077.48"

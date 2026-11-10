@@ -26,9 +26,11 @@ def check_salary(salary: Decimal) -> None:
 
 @dataclass(frozen=True)
 class TraceEntry:
-    """One explained step. `label` names the figure it is about, when the calculator names one."""
+    """One explained step. `label` names the figure it is about, when the calculator names one;
+    `name` is that figure's display name in English, when the calculator gives one."""
 
     label: str | None
+    name: str | None
     amount: Decimal
     text: str
 
@@ -38,7 +40,7 @@ class FormTrace:
     """The steps of one form. `form` and each entry's `label` are the calculator's own
     identifiers, passed through unchanged and opaque to this service: they are not translated,
     so a calculator that renames one changes what callers see. `name` is the form's display
-    name in English, or the identifier itself when none is known."""
+    name in English, or the identifier itself when the calculator gives none."""
 
     form: str
     name: str

@@ -58,6 +58,13 @@ class TraceLine(BaseModel):
             examples=["t2204_line_16"],
         ),
     ] = None
+    name: Annotated[
+        str | None,
+        Field(
+            description="Display name of the figure, in English; null if none is known.",
+            examples=["Ontario surtax"],
+        ),
+    ] = None
     amount: Annotated[str | None, Field(examples=["1077.48"])] = None
     text: Annotated[str, Field(description="Explanation in the requested language.")]
 
@@ -110,7 +117,7 @@ class FormTrace(BaseModel):
     name: Annotated[
         str,
         Field(
-            description="Display name of the form, in English; the identifier when none is known.",
+            description="Display name of the form, in English; the identifier when the calculator gives none.",
             examples=["Schedule 8"],
         ),
     ]
