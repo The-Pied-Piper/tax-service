@@ -52,13 +52,11 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
     for lines in forms.values():
         for line in lines:
             assert line["text"]
-            assert (
-                {"label", "amount", "text"}
-                <= set(line)
-                <= {"label", "name", "reference", "amount", "text"}
-            )
+            assert set(line) == {"label", "name", "reference", "amount", "text"}
     labels = [line["label"] for lines in forms.values() for line in lines]
     assert any(label is not None for label in labels)
+    lines = [line for entry in forms.values() for line in entry]
+    assert any(line["name"] is None for line in lines)  # absent is an explicit null
     assert "trace" not in compute(client).json()
 
 

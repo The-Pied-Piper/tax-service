@@ -42,10 +42,10 @@ class FormTrace:
     """The steps of one form. `form` and each entry's `label` are the calculator's own
     identifiers, passed through unchanged and opaque to this service: they are not translated,
     so a calculator that renames one changes what callers see. `name` is the form's display
-    name in English, or the identifier itself when the calculator gives none."""
+    name in English, when the calculator gives one."""
 
     form: str
-    name: str
+    name: str | None
     lines: tuple[TraceEntry, ...]
 
 

@@ -47,6 +47,11 @@ class Engine(Protocol):
     ) -> Mapping[str, Sequence[Worksheet]]: ...
 
 
+def _present(text: str | None) -> str | None:
+    """The text, or None when there is none (the engine may give nothing or an empty string)."""
+    return text or None
+
+
 class TaxEngineDeductions:
     """Implements DeductionsCalculator with tax-engine; only English text is available."""
 
@@ -104,15 +109,14 @@ class TaxEngineDeductions:
                     lines = tuple(
                         TraceEntry(
                             label=line.label,
-                            name=None if line.label is None else sheet.title(line.label),
-                            reference=None if line.label is None else sheet.reference(line.label),
+                            name=_present(line.label and sheet.title(line.label)),
+                            reference=_present(line.label and sheet.reference(line.label)),
                             amount=line.amount,
                             text=self._renderer.render(line),
                         )
                         for line in sheet.trace
                     )
-                    name = sheet.form_title or form
-                    trace.append(FormTrace(form=form, name=name, lines=lines))
+                    trace.append(FormTrace(form, _present(sheet.form_title), lines))
         return Deductions(
             figures=tuple(DeductionFigure(item, figure(item)) for item in items),
             trace=tuple(trace),

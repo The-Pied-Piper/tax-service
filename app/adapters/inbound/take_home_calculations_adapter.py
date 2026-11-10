@@ -48,7 +48,7 @@ class TakeHomeCalculationsRequestAdapter:
 def _form_trace(trace: DomainFormTrace) -> FormTrace:
     return FormTrace(
         form=trace.form,
-        name=trace.name,
+        name=trace.name or trace.form,
         lines=[
             TraceLine(
                 label=line.label,
