@@ -1,3 +1,4 @@
+import re
 from typing import Annotated
 from urllib.parse import urlsplit
 
@@ -22,15 +23,41 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_origins(cls, value: object) -> object:
         """Split, normalise and check origins; a typo fails at startup, not in the browser."""
-        if not isinstance(value, str):
-            return value
-        origins = []
-        for item in value.split(","):
-            origin = item.strip().rstrip("/").lower()
-            if not origin:
-                continue
-            parts = urlsplit(origin)
-            if parts.scheme not in ("http", "https") or not parts.netloc or parts.path:
-                raise ValueError(f"not an origin (want scheme://host[:port]): {item.strip()!r}")
-            origins.append(origin)
+        items = value.split(",") if isinstance(value, str) else value
+        if not isinstance(items, list):
+            return items
+        origins: list[str] = []
+        for item in items:
+            origin = _normalise_origin(str(item))
+            if origin and origin not in origins:
+                origins.append(origin)
         return origins
+
+
+_HOST = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _normalise_origin(raw: str) -> str:
+    """`scheme://host[:port]` as a browser sends it (lower case, no default port); "" if blank."""
+    text = raw.strip().rstrip("/").lower()
+    if not text:
+        return ""
+    try:
+        parts = urlsplit(text)
+        host, port = parts.hostname, parts.port
+    except ValueError:
+        host, port = None, None
+    if (
+        parts.scheme not in _DEFAULT_PORTS
+        or host is None
+        or not _HOST.fullmatch(host)
+        or parts.netloc != host + (f":{port}" if port is not None else "")
+        or parts.path
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValueError(f"not an origin (want scheme://host[:port], no wildcard): {raw.strip()!r}")
+    if port is None or port == _DEFAULT_PORTS[parts.scheme]:
+        return f"{parts.scheme}://{host}"
+    return f"{parts.scheme}://{host}:{port}"
