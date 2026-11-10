@@ -158,12 +158,16 @@ components:
             $ref: "#/components/schemas/FormTrace"
     FormTrace:
       type: object
-      required: [form, lines]
+      required: [form, name, lines]
       properties:
         form:
           type: string
           description: Identifier of the form; opaque, to be compared and not parsed.
           example: ca/schedule_8
+        name:
+          type: string
+          description: Display name of the form, in English; the identifier when none is known.
+          example: Schedule 8
         lines:
           type: array
           items:
@@ -196,9 +200,13 @@ components:
           description: Empty when there are no more results.
     Jurisdiction:
       type: object
-      required: [code, years]
+      required: [code, name, years]
       properties:
         code: {type: string, example: CA-ON}
+        name:
+          type: string
+          description: Display name of the jurisdiction, in English.
+          example: Ontario
         years:
           type: array
           items:

@@ -107,6 +107,13 @@ class FormTrace(BaseModel):
             examples=["ca/schedule_8"],
         ),
     ]
+    name: Annotated[
+        str,
+        Field(
+            description="Display name of the form, in English; the identifier when none is known.",
+            examples=["Schedule 8"],
+        ),
+    ]
     lines: list[TraceLine]
 
 
@@ -115,6 +122,10 @@ class Jurisdiction(BaseModel):
         populate_by_name=True,
     )
     code: Annotated[str, Field(examples=["CA-ON"])]
+    name: Annotated[
+        str,
+        Field(description="Display name of the jurisdiction, in English.", examples=["Ontario"]),
+    ]
     years: list[JurisdictionYear]
 
 

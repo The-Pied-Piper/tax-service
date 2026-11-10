@@ -58,6 +58,14 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
     assert "trace" not in compute(client).json()
 
 
+def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
+    trace = compute(client, include_trace=True).json()["trace"]
+    names = {entry["form"]: entry["name"] for entry in trace}
+    assert names["ca/schedule_8"] == "Schedule 8"
+    assert names["ca-on/on428"] == "ON428"
+    assert all(name for name in names.values())
+
+
 @pytest.mark.parametrize(
     ("overrides", "field"),
     [
@@ -94,6 +102,7 @@ def test_jurisdictions_list(client: TestClient) -> None:
         "jurisdictions": [
             {
                 "code": "CA-ON",
+                "name": "Ontario",
                 "years": [
                     {"year": 2025, "provisional": False},
                     {"year": 2026, "provisional": True},

@@ -37,9 +37,11 @@ class TraceEntry:
 class FormTrace:
     """The steps of one form. `form` and each entry's `label` are the calculator's own
     identifiers, passed through unchanged and opaque to this service: they are not translated,
-    so a calculator that renames one changes what callers see."""
+    so a calculator that renames one changes what callers see. `name` is the form's display
+    name in English, or the identifier itself when none is known."""
 
     form: str
+    name: str
     lines: tuple[TraceEntry, ...]
 
 
@@ -100,6 +102,8 @@ class SupportedYear:
 @dataclass(frozen=True)
 class SupportedJurisdiction:
     code: str
+    # Display name in English.
+    name: str
     years: tuple[SupportedYear, ...]
     # What "total deductions" means here: the sum of exactly these items.
     deduction_items: tuple[str, ...]
@@ -118,6 +122,7 @@ class SupportedJurisdiction:
 SUPPORTED_JURISDICTIONS = (
     SupportedJurisdiction(
         "CA-ON",
+        "Ontario",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
         deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
