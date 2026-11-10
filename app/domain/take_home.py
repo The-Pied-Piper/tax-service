@@ -27,10 +27,12 @@ def check_salary(salary: Decimal) -> None:
 @dataclass(frozen=True)
 class TraceEntry:
     """One explained step. `label` names the figure it is about, when the calculator names one;
-    `name` is that figure's display name in English, when the calculator gives one."""
+    `name` is that figure's display name in English, and `reference` what the form prints beside
+    it, each when the calculator gives one."""
 
     label: str | None
     name: str | None
+    reference: str | None
     amount: Decimal
     text: str
 

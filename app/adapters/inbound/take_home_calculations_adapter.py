@@ -50,7 +50,13 @@ def _form_trace(trace: DomainFormTrace) -> FormTrace:
         form=trace.form,
         name=trace.name,
         lines=[
-            TraceLine(label=line.label, name=line.name, amount=str(line.amount), text=line.text)
+            TraceLine(
+                label=line.label,
+                name=line.name,
+                reference=line.reference,
+                amount=str(line.amount),
+                text=line.text,
+            )
             for line in trace.lines
         ],
     )

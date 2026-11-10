@@ -186,6 +186,11 @@ components:
           nullable: true
           description: Display name of the figure, in English; null if none is known.
           example: Ontario surtax
+        reference:
+          type: string
+          nullable: true
+          description: What the form prints beside the figure (for example its line number); null for a step the form does not print.
+          example: "65"
         amount:
           type: string
           example: "1077.48"

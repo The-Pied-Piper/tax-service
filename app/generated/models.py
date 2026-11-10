@@ -65,6 +65,13 @@ class TraceLine(BaseModel):
             examples=["Ontario surtax"],
         ),
     ] = None
+    reference: Annotated[
+        str | None,
+        Field(
+            description="What the form prints beside the figure (for example its line number); null for a step the form does not print.",
+            examples=["65"],
+        ),
+    ] = None
     amount: Annotated[str | None, Field(examples=["1077.48"])] = None
     text: Annotated[str, Field(description="Explanation in the requested language.")]
 

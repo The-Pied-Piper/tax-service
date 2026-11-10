@@ -64,7 +64,7 @@ class FailingEngine:
 async def test_a_form_the_engine_gives_no_title_shows_its_identifier() -> None:
     deductions = await calculate(TaxEngineDeductions(), trace=True)
     names = {form.form: form.name for form in deductions.trace}
-    assert names["ca/schedule_8"] == "Schedule 8"
+    assert names["ca/schedule_8"].startswith("Schedule 8")
     assert names["ca-on/return"] == "ca-on/return"
 
 

@@ -105,6 +105,7 @@ class TaxEngineDeductions:
                         TraceEntry(
                             label=line.label,
                             name=None if line.label is None else sheet.title(line.label),
+                            reference=None if line.label is None else sheet.reference(line.label),
                             amount=line.amount,
                             text=self._renderer.render(line),
                         )

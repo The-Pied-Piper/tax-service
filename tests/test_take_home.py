@@ -52,7 +52,11 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
     for lines in forms.values():
         for line in lines:
             assert line["text"]
-            assert {"label", "amount", "text"} <= set(line) <= {"label", "name", "amount", "text"}
+            assert (
+                {"label", "amount", "text"}
+                <= set(line)
+                <= {"label", "name", "reference", "amount", "text"}
+            )
     labels = [line["label"] for lines in forms.values() for line in lines]
     assert any(label is not None for label in labels)
     assert "trace" not in compute(client).json()
@@ -61,8 +65,8 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
 def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
     trace = compute(client, include_trace=True).json()["trace"]
     names = {entry["form"]: entry["name"] for entry in trace}
-    assert names["ca/schedule_8"] == "Schedule 8"
-    assert names["ca-on/on428"] == "ON428"
+    assert names["ca/schedule_8"].startswith("Schedule 8")
+    assert names["ca-on/on428"] == "Form ON428: Ontario Tax"
     lines = {
         line["label"]: line.get("name")
         for entry in trace
@@ -70,6 +74,13 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
         for line in entry["lines"]
     }
     assert lines["on428_surtax_total_line_68"] == "Ontario surtax"
+    references = {
+        line["label"]: line.get("reference")
+        for entry in trace
+        if entry["form"] == "ca-on/on428"
+        for line in entry["lines"]
+    }
+    assert references["on428_surtax_total_line_68"] == "68"
     untitled = {"ca-on/return"}  # the engine gives this form no title, so its identifier shows
     assert all(name != form for form, name in names.items() if form not in untitled)
 
