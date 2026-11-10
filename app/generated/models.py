@@ -69,7 +69,7 @@ class TraceLine(BaseModel):
         str | None,
         Field(
             description="What the form prints beside the figure (for example its line number); null for a step the form does not print.",
-            examples=["65"],
+            examples=["68"],
         ),
     ] = None
     amount: Annotated[str | None, Field(examples=["1077.48"])] = None

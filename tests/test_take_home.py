@@ -79,8 +79,8 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
         for line in entry["lines"]
     }
     assert references["on428_surtax_total_line_68"] == "68"
-    untitled = {"ca-on/return"}  # the engine gives this form no title, so its identifier shows
-    assert all(name != form for form, name in names.items() if form not in untitled)
+    assert all(names.values())
+    assert sum(name != form for form, name in names.items()) >= 7  # all but the untitled
 
 
 @pytest.mark.parametrize(

@@ -190,7 +190,7 @@ components:
           type: string
           nullable: true
           description: What the form prints beside the figure (for example its line number); null for a step the form does not print.
-          example: "65"
+          example: "68"
         amount:
           type: string
           example: "1077.48"
