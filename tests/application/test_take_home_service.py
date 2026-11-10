@@ -16,7 +16,13 @@ from app.domain.take_home import (
     find_jurisdiction,
 )
 
-TRACE = (FormTrace("ex/form", (TraceEntry("ex_line", Decimal("1.00"), "one"),)),)
+TRACE = (
+    FormTrace(
+        "ex/form",
+        "Example form",
+        (TraceEntry("ex_line", "Example line", "1", Decimal("1.00"), "one"),),
+    ),
+)
 # What a $70,000 salary pays of each item in CA-ON 2025; they add up to 16531.32.
 FIGURES = {
     "cpp_base": "3291.75",

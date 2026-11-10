@@ -58,6 +58,20 @@ class TraceLine(BaseModel):
             examples=["t2204_line_16"],
         ),
     ] = None
+    name: Annotated[
+        str | None,
+        Field(
+            description="Display name of the figure, in English; null if none is known.",
+            examples=["Ontario surtax"],
+        ),
+    ] = None
+    reference: Annotated[
+        str | None,
+        Field(
+            description="What the form prints beside the figure (for example its line number); null for a step the form does not print.",
+            examples=["68"],
+        ),
+    ] = None
     amount: Annotated[str | None, Field(examples=["1077.48"])] = None
     text: Annotated[str, Field(description="Explanation in the requested language.")]
 
@@ -107,6 +121,13 @@ class FormTrace(BaseModel):
             examples=["ca/schedule_8"],
         ),
     ]
+    name: Annotated[
+        str,
+        Field(
+            description="Display name of the form, in English; the identifier when the calculator gives none.",
+            examples=["Schedule 8"],
+        ),
+    ]
     lines: list[TraceLine]
 
 
@@ -115,6 +136,10 @@ class Jurisdiction(BaseModel):
         populate_by_name=True,
     )
     code: Annotated[str, Field(examples=["CA-ON"])]
+    name: Annotated[
+        str,
+        Field(description="Display name of the jurisdiction, in English.", examples=["Ontario"]),
+    ]
     years: list[JurisdictionYear]
 
 
