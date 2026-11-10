@@ -158,12 +158,16 @@ components:
             $ref: "#/components/schemas/FormTrace"
     FormTrace:
       type: object
-      required: [form, lines]
+      required: [form, name, lines]
       properties:
         form:
           type: string
           description: Identifier of the form; opaque, to be compared and not parsed.
           example: ca/schedule_8
+        name:
+          type: string
+          description: Display name of the form, in English; the identifier when the calculator gives none.
+          example: Schedule 8
         lines:
           type: array
           items:
@@ -177,6 +181,16 @@ components:
           nullable: true
           description: The figure's label, unique per figure in a form; null if none.
           example: t2204_line_16
+        name:
+          type: string
+          nullable: true
+          description: Display name of the figure, in English; null if none is known.
+          example: Ontario surtax
+        reference:
+          type: string
+          nullable: true
+          description: What the form prints beside the figure (for example its line number); null for a step the form does not print.
+          example: "68"
         amount:
           type: string
           example: "1077.48"
@@ -196,9 +210,13 @@ components:
           description: Empty when there are no more results.
     Jurisdiction:
       type: object
-      required: [code, years]
+      required: [code, name, years]
       properties:
         code: {type: string, example: CA-ON}
+        name:
+          type: string
+          description: Display name of the jurisdiction, in English.
+          example: Ontario
         years:
           type: array
           items:

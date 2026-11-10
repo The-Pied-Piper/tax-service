@@ -1,6 +1,7 @@
 """The tax-engine adapter on its own: no HTTP; the real engine, or a fake one that fails."""
 
 from decimal import Decimal, InvalidOperation
+from types import SimpleNamespace
 from typing import Any, NoReturn
 
 import pytest
@@ -59,6 +60,39 @@ class FailingEngine:
 
     def compute(self, *args: object) -> NoReturn:
         raise self._error
+
+
+class FakeSheet:
+    """A worksheet the engine gives no titles or references for, with one line that has no label."""
+
+    form_title = ""
+    trace = (SimpleNamespace(label=None, amount=Decimal("1.00")),)
+
+    def title(self, label: str) -> str:
+        raise AssertionError("asked for the title of a line with no label")
+
+    def reference(self, label: str) -> str:
+        raise AssertionError("asked for the reference of a line with no label")
+
+
+class FakeEngine:
+    def compute(self, *args: Any) -> Any:
+        return {"ex/form": [FakeSheet()]}
+
+
+async def test_what_the_engine_does_not_title_is_absent() -> None:
+    calculator = TaxEngineDeductions(FakeEngine(), SimpleNamespace(render=lambda line: "one"))
+    deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", (), True)
+    (form,) = deductions.trace
+    assert (form.form, form.name) == ("ex/form", None)
+    (line,) = form.lines
+    assert (line.label, line.name, line.reference) == (None, None, None)
+
+
+async def test_the_real_engine_titles_its_forms() -> None:
+    deductions = await calculate(TaxEngineDeductions(), trace=True)
+    names = {form.form: form.name for form in deductions.trace}
+    assert (names["ca/schedule_8"] or "").startswith("Schedule 8")
 
 
 @pytest.mark.parametrize(

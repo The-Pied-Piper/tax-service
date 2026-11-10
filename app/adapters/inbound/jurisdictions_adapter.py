@@ -30,6 +30,7 @@ class JurisdictionsRequestAdapter:
             jurisdictions=[
                 Jurisdiction(
                     code=j.code,
+                    name=j.name,
                     years=[
                         JurisdictionYear(year=y.year, provisional=y.provisional) for y in j.years
                     ],
