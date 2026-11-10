@@ -30,8 +30,8 @@ RUN useradd --system --no-create-home --shell /usr/sbin/nologin app
 # anywhere else the file is never run, so this is the same image as before.
 # Pinned by digest (a tag can be moved); it runs inside every invocation and sees every request.
 COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1@sha256:46d6625e68cbbdd2efab4a20245977664513f13ffef47915b000d431adcea0b4 /lambda-adapter /opt/extensions/lambda-adapter
-# The app serves readiness under the spec's /api/v1 prefix. (tax-infra sets the same
-# variable on the function and must use this path too.)
+# The app serves readiness under the spec's /api/v1 prefix. tax-infra also sets this
+# variable on the function (its default path has no prefix), so it must use this path too.
 ENV AWS_LWA_READINESS_CHECK_PATH=/api/v1/status/readyz
 COPY openapi ./openapi
 COPY alembic.ini ./

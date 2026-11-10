@@ -38,7 +38,7 @@ Copy `.env.example` to `.env` to change host ports or the log level.
 ```
 openapi/openapi.yml            the contract; edit this first
 app/
-  main.py                      composition root: wires engine -> services -> adapters -> app
+  main.py                      composition root: wires services -> adapters -> app
   settings.py
   generated/                   OWNED BY service-gen, never edit
     models.py                  Pydantic DTOs for every schema

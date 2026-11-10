@@ -1,4 +1,4 @@
-"""Smoke tests proving the spec is served and every operation is wired.
+"""Smoke tests proving the spec is served and the status operations are wired.
 
 Readiness depends on nothing external (no database), so it answers 200 anywhere.
 """

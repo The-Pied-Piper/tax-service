@@ -42,7 +42,8 @@ elif [[ "$found" != *ImageNotFoundException* ]]; then
 fi
 
 # The password goes straight from the AWS CLI to docker: never printed, never on a command line.
-# Log out afterwards so the 12-hour token does not stay in the Docker credential store.
+# Log out afterwards so the 12-hour token does not stay in the Docker credential store
+# (this also drops any earlier login to the same registry).
 trap 'docker logout "$registry" >/dev/null 2>&1 || true' EXIT
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$registry"
 # Build from the committed files only (git archive), so an ignored local file cannot end up in the image.
