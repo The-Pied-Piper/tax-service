@@ -63,7 +63,7 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
     names = {entry["form"]: entry["name"] for entry in trace}
     assert names["ca/schedule_8"] == "Schedule 8"
     assert names["ca-on/on428"] == "ON428"
-    assert all(name for name in names.values())
+    assert all(name != form for form, name in names.items())
 
 
 @pytest.mark.parametrize(

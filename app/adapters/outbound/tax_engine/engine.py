@@ -121,7 +121,8 @@ class TaxEngineDeductions:
                         )
                         for line in sheet.trace
                     )
-                    trace.append(FormTrace(form=form, name=FORM_NAMES.get(form, form), lines=lines))
+                    name = FORM_NAMES.get(form, form)
+                    trace.append(FormTrace(form=form, name=name, lines=lines))
         return Deductions(
             figures=tuple(DeductionFigure(item, figure(item)) for item in items),
             trace=tuple(trace),

@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, NoReturn
 
 import pytest
+from tax_engine import build_tax_computation
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
 from app.application.ports.deductions import DeductionsUnavailableError
@@ -59,6 +60,25 @@ class FailingEngine:
 
     def compute(self, *args: object) -> NoReturn:
         raise self._error
+
+
+class UnnamedFormEngine:
+    """The real engine, with one form also reported under an identifier that has no name."""
+
+    def __init__(self) -> None:
+        self._engine = build_tax_computation()
+
+    def compute(self, *args: Any) -> dict[str, Any]:
+        sheets = dict(self._engine.compute(*args))
+        sheets["ex/unnamed"] = next(iter(sheets.values()))
+        return sheets
+
+
+async def test_a_form_without_a_known_name_shows_its_identifier() -> None:
+    deductions = await calculate(TaxEngineDeductions(UnnamedFormEngine()), trace=True)
+    names = {form.form: form.name for form in deductions.trace}
+    assert names["ex/unnamed"] == "ex/unnamed"
+    assert names["ca/schedule_8"] == "Schedule 8"
 
 
 @pytest.mark.parametrize(
