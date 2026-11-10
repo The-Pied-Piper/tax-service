@@ -23,31 +23,39 @@ class Settings(BaseSettings):
     @classmethod
     def _parse_origins(cls, value: object) -> object:
         """Split, normalise and check origins; a typo fails at startup, not in the browser."""
-        items = value.split(",") if isinstance(value, str) else value
-        if not isinstance(items, list):
-            return items
+        if isinstance(value, str):
+            items: list[object] = list(value.split(","))
+        elif isinstance(value, (list, tuple, set, frozenset)):
+            items = list(value)
+        else:
+            return value
         origins: list[str] = []
         for item in items:
-            origin = _normalise_origin(str(item))
+            origin = _normalise_origin(item)
             if origin and origin not in origins:
                 origins.append(origin)
         return origins
 
 
-_HOST = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
+_LABEL = r"[a-z0-9]([a-z0-9-]*[a-z0-9])?"
+_HOST = re.compile(rf"{_LABEL}(\.{_LABEL})*")
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
-def _normalise_origin(raw: str) -> str:
+def _normalise_origin(raw: object) -> str:
     """`scheme://host[:port]` as a browser sends it (lower case, no default port); "" if blank."""
+    if not isinstance(raw, str):
+        raise ValueError(f"not an origin (want text): {raw!r}")
     text = raw.strip().rstrip("/").lower()
     if not text:
         return ""
     try:
         parts = urlsplit(text)
         host, port = parts.hostname, parts.port
-    except ValueError:
-        host, port = None, None
+    except ValueError as error:
+        raise ValueError(
+            f"not an origin (want scheme://host[:port], no wildcard): {raw.strip()!r}"
+        ) from error
     if (
         parts.scheme not in _DEFAULT_PORTS
         or host is None

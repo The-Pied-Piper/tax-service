@@ -104,6 +104,8 @@ BAD_ORIGINS = [
     "https://a.com:notaport",
     "https://a.com:",
     "https://a .com",
+    "https://[::1",
+    "https://a..com",
 ]
 
 
@@ -117,3 +119,9 @@ def test_malformed_origins_stop_startup(bad: str, monkeypatch: pytest.MonkeyPatc
 def test_a_list_is_checked_too() -> None:
     with pytest.raises(ValidationError):
         Settings(cors_allowed_origins=["*"])
+
+
+@pytest.mark.parametrize("shape", [tuple, set, frozenset])
+def test_any_collection_is_checked(shape: type) -> None:
+    with pytest.raises(ValidationError):
+        Settings(cors_allowed_origins=shape(["*"]))
