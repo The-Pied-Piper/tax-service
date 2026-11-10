@@ -13,8 +13,10 @@ from pathlib import Path
 from typing import Any
 
 from connexion import AsyncApp
+from connexion.middleware import MiddlewarePosition
 from connexion.resolver import Resolver
 from sqlalchemy.ext.asyncio import AsyncEngine
+from starlette.middleware.cors import CORSMiddleware
 
 from app.adapters.inbound import http_errors
 from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
@@ -71,6 +73,15 @@ def create_app(
         validate_responses=settings.validate_responses,
     )
     http_errors.register_error_handlers(app)
+    if settings.cors_origins:
+        # Browser access from the website's own origins only; the API has no cookies or credentials.
+        app.add_middleware(
+            CORSMiddleware,
+            position=MiddlewarePosition.BEFORE_EXCEPTION,
+            allow_origins=settings.cors_origins,
+            allow_methods=["GET", "POST"],
+            allow_headers=["Content-Type"],
+        )
     return app
 
 
