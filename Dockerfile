@@ -30,6 +30,10 @@ COPY openapi ./openapi
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
+# AWS Lambda Web Adapter: on Lambda it forwards each request to uvicorn on 8080;
+# anywhere else the file is never run, so this is the same image as before.
+# The infra module sets AWS_LWA_PORT and the readiness path (/status/readyz).
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
 USER app
 EXPOSE 8080
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

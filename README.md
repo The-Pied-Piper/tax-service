@@ -91,8 +91,15 @@ A tag whose operations are all named like liveness/readiness probes (`livez`,
 service instead of 501 stubs: liveness always returns a `Health` (status `ok`),
 which the status adapter maps to the response; readiness runs every
 `ReadinessProbe` from `build_adapters()` in `main.py` and answers 503 on the
-first failure. `DatabaseProbe` (`SELECT 1`) is wired by
-default; add a probe per external dependency.
+first failure. `DatabaseProbe` (`SELECT 1`) exists but is not wired in this service, which uses no
+database (on Lambda there is none to reach); add a probe per external dependency.
+
+## Publishing the image
+
+The production image (the `prod` stage of the Dockerfile) also runs on AWS Lambda: it carries the AWS Lambda Web Adapter, which does nothing outside Lambda. Images go to the private ECR repository `tax-service-<env>` that [tax-infra](https://github.com/The-Pied-Piper/tax-infra) creates, tagged with the 12-character commit id.
+
+- By hand, from a clean checkout with AWS credentials for the target account: `./dev.sh push-image dev <account-id>`. It prints the `image_tag` to set in tax-infra.
+- From CI: `.github/workflows/publish-image.yml` runs the same command on every merge to main, through an OIDC role. It stays off until the repository variables `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV` are set.
 
 ## Upgrading the template
 

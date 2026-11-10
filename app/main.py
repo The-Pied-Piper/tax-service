@@ -20,7 +20,7 @@ from app.adapters.inbound import http_errors
 from app.adapters.inbound.jurisdictions_adapter import JurisdictionsRequestAdapter
 from app.adapters.inbound.status_adapter import StatusRequestAdapter
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
-from app.adapters.outbound.db import DatabaseProbe, create_engine
+from app.adapters.outbound.db import create_engine
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
 from app.application.services.jurisdictions_service import JurisdictionsService
 from app.application.services.status_service import StatusService
@@ -37,10 +37,12 @@ def build_adapters(settings: Settings, engine: AsyncEngine) -> Adapters:
     Repositories take a session factory from `create_session_factory(engine)`
     and are passed into the services they back.
     """
-    probes = [DatabaseProbe(engine)]
+    # No probes: this service keeps no state and uses no database, and on Lambda there
+    # is none to reach, so a DatabaseProbe would hold /status/readyz at 503 for ever.
+    # Pass probes here (the empty tuple below) when the service gains a dependency worth checking.
     return Adapters(
         jurisdictions=JurisdictionsRequestAdapter(JurisdictionsService()),
-        status=StatusRequestAdapter(StatusService(probes)),
+        status=StatusRequestAdapter(StatusService(())),
         take_home_calculations=TakeHomeCalculationsRequestAdapter(
             TakeHomeCalculationsService(TaxEngineDeductions())
         ),
