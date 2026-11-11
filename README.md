@@ -115,6 +115,14 @@ Images go to the private ECR repository `tax-service-<env>` that
 - From CI: `.github/workflows/publish-image.yml` runs the same command on every
   merge to main, through an OIDC role. It stays off until the repository variables
   `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV` are set.
+- A second job in the same workflow then points the dev function at that image
+  (`aws lambda update-function-code`), waits for the update, and checks
+  `/api/v1/status/readyz`, through a second OIDC role that can do nothing else. It
+  stays off until the repository variables `AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV` and
+  `LAMBDA_FUNCTION_NAME_DEV` are set (tax-infra outputs `ci_deploy_role_arn` and
+  `function_name`). A merge to main is therefore a deploy to dev; prod deploys on a
+  release instead. If the new version is bad, the run turns red and the previous
+  version is gone from the function: roll back by hand until tax-infra #70.
 
 The role (tax-infra) must trust only this repository's `main` branch (an exact
 `sub` of `repo:The-Pied-Piper/tax-service:ref:refs/heads/main`, audience

@@ -5,6 +5,11 @@ name: Publish image
 # OIDC role (no stored keys). It does nothing until the repository variables
 # AWS_ACCOUNT_ID_DEV and AWS_ECR_PUSH_ROLE_ARN_DEV are set, which happens once
 # tax-infra has created the ECR repository and the role.
+#
+# A second job then points the dev Lambda function at that image, through a second
+# role that can do nothing else. It stays off until AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV and
+# LAMBDA_FUNCTION_NAME_DEV are set too. Neither job declares `environment:` (that
+# changes the token's subject and the roles stop matching).
 # Actions are pinned by commit; Dependabot (github-actions) keeps the tags in the comments current.
 
 on:
@@ -28,6 +33,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,3 +54,54 @@ jobs:
         env:
           ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_DEV }}
         run: ./dev.sh push-image dev "$ACCOUNT_ID"
+
+      # The tag the push command used (the 12-character commit id), for the deploy job.
+      - name: Name the pushed image
+        id: tag
+        run: echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    # Switches the dev function to the image the publish job just pushed. It runs
+    # in its own job so that only this job holds the deploy role, and it runs one
+    # at a time (the workflow's concurrency group), in merge order.
+    needs: publish
+    if: ${{ github.ref == 'refs/heads/main' && vars.AWS_ACCOUNT_ID_DEV != '' && vars.AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV != '' && vars.LAMBDA_FUNCTION_NAME_DEV != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV }}
+          role-session-name: tax-service-deploy-${{ github.run_id }}
+          role-duration-seconds: 900
+          aws-region: ca-central-1
+
+      - name: Switch the function to the new image
+        env:
+          ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_DEV }}
+          FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME_DEV }}
+          TAG: ${{ needs.publish.outputs.tag }}
+        run: |
+          set -euo pipefail
+          image_uri="$ACCOUNT_ID.dkr.ecr.ca-central-1.amazonaws.com/tax-service-dev:$TAG"
+          aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$image_uri" --output text --query LastUpdateStatus
+          # Waits until the update has finished; fails if it did not succeed.
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+          echo "dev now runs $image_uri"
+
+      # The API answers only when the new version started. A failure turns the run red
+      # and leaves the person to roll back (tax-infra #70).
+      - name: Check the API is ready
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if curl --fail --silent --show-error --max-time 10 https://api-dev.aftertaxlens.com/api/v1/status/readyz; then
+              echo
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "the API did not become ready after the deploy" >&2
+          exit 1
