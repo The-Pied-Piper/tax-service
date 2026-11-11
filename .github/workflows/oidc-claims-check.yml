@@ -1,0 +1,32 @@
+name: OIDC claims check (throwaway)
+
+# Prints the non-secret claims of this run's OIDC token (never the token) so tax-infra
+# #46 can match the exact strings. Runs only on this throwaway branch. Not for main.
+on:
+  push:
+    branches: [claude/project-thread-qynset-claims]
+
+permissions:
+  contents: read
+
+jobs:
+  claims:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Print the claims
+        run: |
+          set -euo pipefail
+          resp="$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=claims-check")"
+          token="$(printf '%s' "$resp" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::$token"
+          printf '%s' "$token" | python3 -c '
+          import sys,json,base64
+          p=sys.stdin.read().split(".")[1]
+          p+="="*(-len(p)%4)
+          c=json.loads(base64.urlsafe_b64decode(p))
+          for k in ("sub","repository","repository_id","repository_owner","repository_owner_id","ref","job_workflow_ref","job_workflow_sha","workflow","workflow_ref","event_name","environment","runner_environment"):
+              print(k,"=",c.get(k))
+          '
