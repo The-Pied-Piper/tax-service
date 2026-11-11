@@ -21,7 +21,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}
+  # One group per ref, so a manual run on another branch cannot replace the newest
+  # waiting run on main.
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -58,17 +60,20 @@ jobs:
       # The tag the push command used (the 12-character commit id), for the deploy job.
       - name: Name the pushed image
         id: tag
-        run: echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          tag="$(git rev-parse --short=12 HEAD)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   deploy:
     # Switches the dev function to the image the publish job just pushed. It runs
-    # in its own job so that only this job holds the deploy role, and it runs one
-    # at a time (the workflow's concurrency group), in merge order.
+    # in its own job so that only this job holds the deploy role. Runs go one at a
+    # time (the workflow's concurrency group), newest last: if several merges queue up
+    # behind a running deploy, only the newest waiting run is kept.
     needs: publish
     if: ${{ github.ref == 'refs/heads/main' && vars.AWS_ACCOUNT_ID_DEV != '' && vars.AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV != '' && vars.LAMBDA_FUNCTION_NAME_DEV != '' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       id-token: write
     steps:
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -85,14 +90,18 @@ jobs:
           TAG: ${{ needs.publish.outputs.tag }}
         run: |
           set -euo pipefail
+          [[ "$TAG" =~ ^[0-9a-f]{12,40}$ ]] || { echo "unexpected image tag" >&2; exit 1; }
+          [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || { echo "unexpected account id" >&2; exit 1; }
           image_uri="$ACCOUNT_ID.dkr.ecr.ca-central-1.amazonaws.com/tax-service-dev:$TAG"
           aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$image_uri" --output text --query LastUpdateStatus
           # Waits until the update has finished; fails if it did not succeed.
           aws lambda wait function-updated --function-name "$FUNCTION_NAME"
           echo "dev now runs $image_uri"
 
-      # The API answers only when the new version started. A failure turns the run red
-      # and leaves the person to roll back (tax-infra #70).
+      # The dev API (api-dev.aftertaxlens.com, the tax-infra dev environment's name) must
+      # answer healthy after the switch. This shows the API is up, not which version
+      # answers (readyz returns no version). A failure turns the run red and leaves the
+      # person to roll back (tax-infra #70).
       - name: Check the API is ready
         run: |
           set -euo pipefail
