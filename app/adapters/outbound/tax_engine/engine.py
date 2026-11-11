@@ -50,7 +50,7 @@ class Engine(Protocol):
 class Renderer(Protocol):
     """The part of tax-engine's trace renderer this adapter uses."""
 
-    def render(self, line: Any) -> str: ...
+    def render(self, line: Any, printed: Any = None) -> str: ...
 
 
 def _present(text: str | None) -> str | None:
@@ -120,7 +120,7 @@ class TaxEngineDeductions:
                                 None if line.label is None else sheet.reference(line.label)
                             ),
                             amount=line.amount,
-                            text=self._renderer.render(line),
+                            text=self._renderer.render(line, sheet),
                         )
                         for line in sheet.trace
                     )

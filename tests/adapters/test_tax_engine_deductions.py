@@ -81,7 +81,9 @@ class FakeEngine:
 
 
 async def test_what_the_engine_does_not_title_is_absent() -> None:
-    calculator = TaxEngineDeductions(FakeEngine(), SimpleNamespace(render=lambda line: "one"))
+    calculator = TaxEngineDeductions(
+        FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
+    )
     deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", (), True)
     (form,) = deductions.trace
     assert (form.form, form.name) == ("ex/form", None)
@@ -93,6 +95,13 @@ async def test_the_real_engine_titles_its_forms() -> None:
     deductions = await calculate(TaxEngineDeductions(), trace=True)
     names = {form.form: form.name for form in deductions.trace}
     assert (names["ca/schedule_8"] or "").startswith("Schedule 8")
+
+
+async def test_sentences_name_figures_the_way_the_form_prints_them() -> None:
+    deductions = await calculate(TaxEngineDeductions(), trace=True)
+    (sheet,) = (form for form in deductions.trace if form.form == "ca/schedule_6")
+    (line,) = (line for line in sheet.lines if line.label == "cwb_reduction_line_27")
+    assert line.text == "15% of line 25 (42480.00) gives 6372.00 (rounded to the nearest cent)."
 
 
 @pytest.mark.parametrize(
