@@ -99,7 +99,7 @@ starlette==1.10.0
     # via connexion
 swagger-ui-bundle==1.1.0
     # via connexion
-tax-engine @ git+https://github.com/The-Pied-Piper/tax-engine.git@5ed2b3919d5b767951ea73cbe5324c77f1186498
+tax-engine @ git+https://github.com/The-Pied-Piper/tax-engine.git@92a76c88a73d88c47bef68848e9888327640ca02
     # via -r requirements.in
 typing-extensions==4.16.0
     # via
