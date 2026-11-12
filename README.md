@@ -114,8 +114,8 @@ never expires; prod must run a release tag. The adapter is pinned by digest.
 
 - By hand, from a clean checkout with AWS credentials for the target account:
   `./dev.sh push-image dev <account-id>`. It builds from the committed files and
-  prints the `image_tag` to set in tax-infra. Add a release tag as a third argument
-  (`./dev.sh push-image prod <account-id> v1`; `v` then a number) to put that tag on the same image; the
+  prints the image `digest` (to record) and the `image_tag` to set in tax-infra. Add a release tag as a third argument
+  (`./dev.sh push-image prod <account-id> v1`; the tag is `v` and a number) to put that tag on the same image; the
   printed `image_tag = "v1"` is then the line for tax-infra. A release tag that already
   exists must point at the same image, so use a new one for each release.
 - From CI: `.github/workflows/publish-image.yml` runs the same command on every

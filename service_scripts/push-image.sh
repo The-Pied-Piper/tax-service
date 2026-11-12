@@ -36,17 +36,21 @@ tag="sha-$(git rev-parse --short=12 HEAD)"
 registry="$account_id.dkr.ecr.$REGION.amazonaws.com"
 repository_name="$SERVICE_NAME-$env_name"
 
+digest=""
 # Adds the release tag to the image that already carries the build tag.
 # Tags are immutable, so a release tag that exists must already point at this image.
-add_release_tag() {
-    [[ -n "$release_tag" ]] || return 0
-    local digest existing manifest
+# Reads the digest of the image that carries the build tag; stops unless it is a real digest.
+read_digest() {
     digest="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
         --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)"
     if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
         echo "unexpected digest for $tag: $digest" >&2
-        return 1
+        exit 1
     fi
+}
+add_release_tag() {
+    [[ -n "$release_tag" ]] || return 0
+    local existing manifest
     if existing="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
         --image-ids "imageTag=$release_tag" --query 'imageDetails[0].imageDigest' --output text 2>&1)"; then
         if [[ "$existing" == "$digest" ]]; then
@@ -72,8 +76,7 @@ add_release_tag() {
 }
 print_result() {
     # The digest lets the operator record exactly which image the tag names.
-    echo "digest = \"$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
-        --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)\""
+    echo "digest = \"$digest\""
     echo "image_tag = \"${release_tag:-$tag}\""
 }
 
@@ -81,6 +84,7 @@ print_result() {
 if found="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
     --image-ids "imageTag=$tag" 2>&1)"; then
     echo "image $tag is already in $repository_name (pushed earlier, not by this run); nothing to push"
+    read_digest
     add_release_tag
     print_result
     exit 0
@@ -99,5 +103,6 @@ aws ecr get-login-password --region "$REGION" | docker login --username AWS --pa
 git archive HEAD | docker buildx build --platform linux/amd64 --target prod --provenance=false --push \
     -t "$registry/$repository_name:$tag" -
 echo "pushed $registry/$repository_name:$tag"
+read_digest
 add_release_tag
 print_result
