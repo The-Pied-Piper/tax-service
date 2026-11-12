@@ -11,11 +11,14 @@ from decimal import Decimal
 
 from app.application.ports.take_home_calculations_port import TakeHomeCalculationsPort
 from app.domain.take_home import FormTrace as DomainFormTrace
+from app.domain.take_home import Unit as DomainUnit
 from app.generated.models import (
     ComputeTakeHomeCalculationRequest,
     ComputeTakeHomeCalculationResponse,
     FormTrace,
+    Placement,
     TraceLine,
+    Unit,
 )
 
 
@@ -39,6 +42,7 @@ class TakeHomeCalculationsRequestAdapter:
             total_deductions=str(result.total_deductions),
             take_home=str(result.take_home),
             provisional=result.provisional,
+            unit=_unit(result.unit),
         )
         if result.trace is not None:
             response.trace = [_form_trace(t) for t in result.trace]
@@ -56,7 +60,18 @@ def _form_trace(trace: DomainFormTrace) -> FormTrace:
                 reference=line.reference,
                 amount=str(line.amount),
                 text=line.text,
+                unit=None if line.unit is None else _unit(line.unit),
             )
             for line in trace.lines
         ],
+    )
+
+
+def _unit(unit: DomainUnit) -> Unit:
+    return Unit(
+        name=unit.name,
+        placement=Placement(unit.placement),
+        singular=unit.singular,
+        plural=unit.plural,
+        spaced=unit.spaced,
     )

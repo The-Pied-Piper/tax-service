@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from enum import StrEnum
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,33 +48,44 @@ class ComputeTakeHomeCalculationRequest(BaseModel):
     )
 
 
-class TraceLine(BaseModel):
+class Placement(StrEnum):
+    """
+    Whether the text goes before or after the number.
+    """
+
+    before = "before"
+    after = "after"
+
+
+class Unit(BaseModel):
+    """
+    What a figure is counted in, as data for the caller to format; amounts stay plain decimal strings. The text is in the language of the trace (English).
+    """
+
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    label: Annotated[
-        str | None,
-        Field(
-            description="The figure's label, unique per figure in a form; null if none.",
-            examples=["t2204_line_16"],
-        ),
-    ] = None
     name: Annotated[
-        str | None,
+        str,
         Field(
-            description="Display name of the figure, in English; null if none is known.",
-            examples=["Ontario surtax"],
+            description="Identifier of the unit; opaque, to be compared and not parsed.",
+            examples=["ca/cad"],
         ),
-    ] = None
-    reference: Annotated[
-        str | None,
+    ]
+    placement: Annotated[
+        Placement,
+        Field(description="Whether the text goes before or after the number.", examples=["before"]),
+    ]
+    singular: Annotated[
+        str, Field(description="The text beside an amount of exactly 1.", examples=["CA$"])
+    ]
+    plural: Annotated[str, Field(description="The text beside any other amount.", examples=["CA$"])]
+    spaced: Annotated[
+        bool,
         Field(
-            description="What the form prints beside the figure (for example its line number); null for a step the form does not print.",
-            examples=["68"],
+            description="Whether one space separates the text from the number.", examples=[False]
         ),
-    ] = None
-    amount: Annotated[str | None, Field(examples=["1077.48"])] = None
-    text: Annotated[str, Field(description="Explanation in the requested language.")]
+    ]
 
 
 class JurisdictionYear(BaseModel):
@@ -110,6 +122,51 @@ class Error(BaseModel):
     ] = None
 
 
+class TraceLine(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    label: Annotated[
+        str | None,
+        Field(
+            description="The figure's label, unique per figure in a form; null if none.",
+            examples=["t2204_line_16"],
+        ),
+    ] = None
+    name: Annotated[
+        str | None,
+        Field(
+            description="Display name of the figure, in English; null if none is known.",
+            examples=["Ontario surtax"],
+        ),
+    ] = None
+    reference: Annotated[
+        str | None,
+        Field(
+            description="What the form prints beside the figure (for example its line number); null for a step the form does not print.",
+            examples=["68"],
+        ),
+    ] = None
+    amount: Annotated[str | None, Field(examples=["1077.48"])] = None
+    unit: Annotated[
+        Unit | dict[str, Any] | None,
+        Field(description="The unit of amount; null if the figure has none."),
+    ] = None
+    text: Annotated[str, Field(description="Explanation in the requested language.")]
+
+
+class Jurisdiction(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    code: Annotated[str, Field(examples=["CA-ON"])]
+    name: Annotated[
+        str,
+        Field(description="Display name of the jurisdiction, in English.", examples=["Ontario"]),
+    ]
+    years: list[JurisdictionYear]
+
+
 class FormTrace(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -131,16 +188,12 @@ class FormTrace(BaseModel):
     lines: list[TraceLine]
 
 
-class Jurisdiction(BaseModel):
+class ListJurisdictionsResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    code: Annotated[str, Field(examples=["CA-ON"])]
-    name: Annotated[
-        str,
-        Field(description="Display name of the jurisdiction, in English.", examples=["Ontario"]),
-    ]
-    years: list[JurisdictionYear]
+    jurisdictions: list[Jurisdiction]
+    next_page_token: Annotated[str, Field(description="Empty when there are no more results.")]
 
 
 class ComputeTakeHomeCalculationResponse(BaseModel):
@@ -154,6 +207,7 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
     take_home: Annotated[
         str, Field(description="Salary minus total deductions.", examples=["53468.68"])
     ]
+    unit: Unit
     provisional: Annotated[
         bool, Field(description="True when the year's figures are provisional.", examples=[False])
     ]
@@ -161,11 +215,3 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
         list[FormTrace] | None,
         Field(description="Present only when include_trace is true; one entry per form."),
     ] = None
-
-
-class ListJurisdictionsResponse(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    jurisdictions: list[Jurisdiction]
-    next_page_token: Annotated[str, Field(description="Empty when there are no more results.")]

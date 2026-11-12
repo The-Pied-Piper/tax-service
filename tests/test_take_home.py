@@ -17,6 +17,14 @@ from app.settings import Settings
 
 BASE = "/api/v1"
 COMPUTE = f"{BASE}/take-home-calculations:compute"
+CAD = {"name": "ca/cad", "placement": "before", "singular": "CA$", "plural": "CA$", "spaced": False}
+MONTHS = {
+    "name": "core/months",
+    "placement": "after",
+    "singular": "month",
+    "plural": "months",
+    "spaced": True,
+}
 
 
 def compute(client: TestClient, **overrides: Any) -> Any:
@@ -32,6 +40,7 @@ def test_70000_in_ontario_2025(client: TestClient) -> None:
         "total_deductions": "16531.32",
         "take_home": "53468.68",
         "provisional": False,
+        "unit": CAD,
     }
 
 
@@ -39,6 +48,29 @@ def test_70000_in_ontario_2026_is_provisional(client: TestClient) -> None:
     body = compute(client, year=2026).json()
     assert body["take_home"] == "53786.25"
     assert body["provisional"] is True
+    assert body["unit"] == CAD
+
+
+@pytest.mark.parametrize("year", [2025, 2026])
+def test_every_trace_line_carries_its_unit_and_money_rows_the_top_level_one(
+    client: TestClient, year: int
+) -> None:
+    body = compute(client, year=year, include_trace=True).json()
+    lines = [line for entry in body["trace"] for line in entry["lines"]]
+    assert all("unit" in line for line in lines)
+    units = [line["unit"] for line in lines]
+    assert units.count(body["unit"]) > 100  # the money rows
+    assert None in units  # a figure without a unit is an explicit null
+    assert set(map(str, filter(None, units))) <= {str(CAD), str(MONTHS)}
+    assert MONTHS in units  # a count of months goes after the number
+
+
+def test_the_ei_row_on_t2204_is_in_canadian_dollars(client: TestClient) -> None:
+    trace = compute(client, include_trace=True).json()["trace"]
+    (t2204,) = (entry for entry in trace if entry["form"] == "ca/t2204")
+    rows = [line for line in t2204["lines"] if line["amount"] == "1077.48"]
+    assert rows
+    assert all(row["unit"] == CAD for row in rows)
 
 
 def test_whole_dollar_salary_is_accepted(client: TestClient) -> None:
@@ -52,7 +84,7 @@ def test_trace_is_grouped_by_form_and_only_when_asked(client: TestClient) -> Non
     for lines in forms.values():
         for line in lines:
             assert line["text"]
-            assert set(line) == {"label", "name", "reference", "amount", "text"}
+            assert set(line) == {"label", "name", "reference", "amount", "text", "unit"}
     labels = [line["label"] for lines in forms.values() for line in lines]
     assert any(label is not None for label in labels)
     lines = [line for entry in forms.values() for line in entry]

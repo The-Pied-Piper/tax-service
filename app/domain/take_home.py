@@ -25,16 +25,31 @@ def check_salary(salary: Decimal) -> None:
 
 
 @dataclass(frozen=True)
+class Unit:
+    """What a figure is counted in, as data for the caller to format. `name` is the calculator's
+    identifier of the unit, opaque: compare it, do not parse it. `placement` is `before` or
+    `after` the number; `singular` is the text beside exactly 1 and `plural` the text beside any
+    other number; `spaced` says whether one space separates the text from the number."""
+
+    name: str
+    placement: str
+    singular: str
+    plural: str
+    spaced: bool
+
+
+@dataclass(frozen=True)
 class TraceEntry:
     """One explained step. `label` names the figure it is about, when the calculator names one;
     `name` is that figure's display name in English, and `reference` what the form prints beside
-    it, each when the calculator gives one."""
+    it, each when the calculator gives one. `unit` is the unit of `amount`, when it has one."""
 
     label: str | None
     name: str | None
     reference: str | None
     amount: Decimal
     text: str
+    unit: Unit | None
 
 
 @dataclass(frozen=True)
@@ -64,10 +79,12 @@ class DeductionFigure:
 
 @dataclass(frozen=True)
 class Deductions:
-    """The figures asked for, with the steps that explain them."""
+    """The figures asked for, with the steps that explain them. `unit` is the one unit all the
+    figures are in."""
 
     figures: tuple[DeductionFigure, ...]
     trace: tuple[FormTrace, ...]
+    unit: Unit
 
 
 @dataclass(frozen=True)
@@ -76,6 +93,7 @@ class TakeHomeResult:
     total_deductions: Decimal
     take_home: Decimal
     provisional: bool
+    unit: Unit
     trace: tuple[FormTrace, ...] | None
 
     @classmethod
@@ -84,6 +102,7 @@ class TakeHomeResult:
         salary: Decimal,
         figures: tuple[DeductionFigure, ...],
         provisional: bool,
+        unit: Unit,
         trace: tuple[FormTrace, ...] | None,
     ) -> TakeHomeResult:
         """Take-home pay is the salary minus the sum of the figures, in whole cents."""
@@ -93,6 +112,7 @@ class TakeHomeResult:
             total_deductions=total.quantize(CENTS),
             take_home=(salary - total).quantize(CENTS),
             provisional=provisional,
+            unit=unit,
             trace=trace,
         )
 

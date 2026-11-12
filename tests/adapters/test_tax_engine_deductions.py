@@ -5,11 +5,14 @@ from types import SimpleNamespace
 from typing import Any, NoReturn
 
 import pytest
+from tax_engine.registrations import artifact_kinds
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.take_home import SUPPORTED_JURISDICTIONS
+from app.domain.take_home import SUPPORTED_JURISDICTIONS, Unit
 
+CAD = Unit("ca/cad", "before", "CA$", "CA$", False)
+MONTHS = Unit("core/months", "after", "month", "months", True)
 ONTARIO_ITEMS = SUPPORTED_JURISDICTIONS[0].deduction_items  # CA-ON, the only jurisdiction
 
 
@@ -54,6 +57,22 @@ async def test_an_engine_failure_becomes_the_ports_error() -> None:
         await calculate(TaxEngineDeductions(), year=2024)
 
 
+async def test_the_deductions_are_in_canadian_dollars() -> None:
+    assert (await calculate(TaxEngineDeductions())).unit == CAD
+
+
+async def test_trace_lines_carry_the_unit_of_their_figure() -> None:
+    deductions = await calculate(TaxEngineDeductions(), trace=True)
+    (t2204,) = (form for form in deductions.trace if form.form == "ca/t2204")
+    ei = [line for line in t2204.lines if line.amount == Decimal("1077.48")]
+    assert ei
+    assert all(line.unit == CAD for line in ei)
+    lines = [line for form in deductions.trace for line in form.lines]
+    assert MONTHS in [line.unit for line in lines]
+    assert None in [line.unit for line in lines]
+    assert {line.unit for line in lines} <= {CAD, MONTHS, None}
+
+
 class FailingEngine:
     def __init__(self, error: Exception) -> None:
         self._error = error
@@ -68,6 +87,12 @@ class FakeSheet:
     form_title = ""
     trace = (SimpleNamespace(label=None, amount=Decimal("1.00")),)
 
+    def get(self, kind: Any) -> Any:
+        return SimpleNamespace(value=Decimal("1.00"), unit=SimpleNamespace(identifier="ca/cad"))
+
+    def unit(self, label: str) -> None:
+        raise AssertionError("asked for the unit of a line with no label")
+
     def title(self, label: str) -> str:
         raise AssertionError("asked for the title of a line with no label")
 
@@ -77,16 +102,16 @@ class FakeSheet:
 
 class FakeEngine:
     def compute(self, *args: Any) -> Any:
-        return {"ex/form": [FakeSheet()]}
+        return {"ca/t2204": [FakeSheet()]}
 
 
 async def test_what_the_engine_does_not_title_is_absent() -> None:
     calculator = TaxEngineDeductions(
         FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
     )
-    deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", (), True)
+    deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", ("ei",), True)
     (form,) = deductions.trace
-    assert (form.form, form.name) == ("ex/form", None)
+    assert (form.form, form.name) == ("ca/t2204", None)
     (line,) = form.lines
     assert (line.label, line.name, line.reference) == (None, None, None)
 
@@ -101,7 +126,9 @@ async def test_sentences_name_figures_the_way_the_form_prints_them() -> None:
     deductions = await calculate(TaxEngineDeductions(), trace=True)
     (sheet,) = (form for form in deductions.trace if form.form == "ca/schedule_6")
     (line,) = (line for line in sheet.lines if line.label == "cwb_reduction_line_27")
-    assert line.text == "15% of line 25 (42480.00) gives 6372.00 (rounded to the nearest cent)."
+    assert (
+        line.text == "15% of line 25 (CA$42480.00) gives CA$6372.00 (rounded to the nearest cent)."
+    )
 
 
 @pytest.mark.parametrize(
@@ -134,3 +161,57 @@ async def test_every_supported_jurisdiction_year_and_language_works_with_the_rea
                     False,
                 )
                 assert [f.item for f in deductions.figures] == list(jurisdiction.deduction_items)
+
+
+class UnitSheet:
+    """A worksheet whose figures each have the unit given for their kind (None for no unit)."""
+
+    form_title = ""
+    trace = ()
+
+    def __init__(self, units: dict[str, str | None]) -> None:
+        kinds = artifact_kinds()
+        self._units = {kinds.kind(kind): unit for kind, unit in units.items()}
+
+    def get(self, kind: Any) -> Any:
+        unit = self._units[kind]
+        identifier = None if unit is None else SimpleNamespace(identifier=unit)
+        return SimpleNamespace(value=Decimal("1.00"), unit=identifier)
+
+
+class UnitEngine:
+    def __init__(self, units: dict[str, str | None]) -> None:
+        self._units = units
+
+    def compute(self, *args: Any) -> Any:
+        sheet = UnitSheet(self._units)
+        return {"ca/t2204": [sheet], "ca/schedule_8": [sheet]}
+
+
+EI = "ca/t2204_line_16"
+CPP2 = "ca/cpp_part_3_line_22"
+
+
+async def deductions_with_units(units: dict[str, str | None]) -> Any:
+    calculator = TaxEngineDeductions(UnitEngine(units), SimpleNamespace(render=lambda *a: "one"))
+    return await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", ("ei", "cpp2"), False)
+
+
+async def test_figures_that_share_a_unit_give_that_unit() -> None:
+    assert (await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad"})).unit == CAD
+
+
+@pytest.mark.parametrize(
+    "units",
+    [
+        {EI: "ca/cad", CPP2: "core/months"},
+        {EI: "ca/cad", CPP2: None},
+        {EI: None, CPP2: "ca/cad"},
+        {EI: None, CPP2: None},
+    ],
+)
+async def test_figures_that_do_not_share_one_unit_are_the_ports_error(
+    units: dict[str, str | None],
+) -> None:
+    with pytest.raises(DeductionsUnavailableError):
+        await deductions_with_units(units)

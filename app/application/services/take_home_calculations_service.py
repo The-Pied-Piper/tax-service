@@ -48,6 +48,7 @@ class TakeHomeCalculationsService:
             salary,
             deductions.figures,
             supported_year.provisional,
+            deductions.unit,
             deductions.trace if include_trace else None,
         )
 
