@@ -49,6 +49,8 @@ class TakeHomeCalculationsService:
             deductions.figures,
             supported_year.provisional,
             deductions.unit,
+            deductions.average_income_tax_rate,
+            deductions.marginal_income_tax_rate,
             deductions.trace if include_trace else None,
         )
 
