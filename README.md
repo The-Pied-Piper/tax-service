@@ -106,12 +106,18 @@ no external dependency to check; add a probe per dependency.
 The production image (the `prod` stage of the Dockerfile) also runs on AWS
 Lambda: it carries the AWS Lambda Web Adapter, which does nothing outside Lambda.
 Images go to the private ECR repository `tax-service-<env>` that
-[tax-infra](https://github.com/The-Pied-Piper/tax-infra) creates, tagged with the
-12-character commit id. The adapter is pinned by digest.
+[tax-infra](https://github.com/The-Pied-Piper/tax-infra) creates, tagged
+`sha-<12-character commit id>` (tax-infra expires these after the newest 30; dev CI
+runs such an image because it is always the newest).
+An image that should keep running also gets a release tag starting with `v`, which
+never expires; prod must run a release tag. The adapter is pinned by digest.
 
 - By hand, from a clean checkout with AWS credentials for the target account:
   `./dev.sh push-image dev <account-id>`. It builds from the committed files and
-  prints the `image_tag` to set in tax-infra.
+  prints the image `digest` (to record) and the `image_tag` to set in tax-infra. Add a release tag as a third argument
+  (`./dev.sh push-image prod <account-id> v1`; the tag is `v` and a number) to put that tag on the same image; the
+  printed `image_tag = "v1"` is then the line for tax-infra. A release tag that already
+  exists must point at the same image, so use a new one for each release.
 - From CI: `.github/workflows/publish-image.yml` runs the same command on every
   merge to main, through an OIDC role. It stays off until the repository variables
   `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV` are set.
