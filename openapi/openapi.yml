@@ -136,7 +136,7 @@ components:
           default: false
     ComputeTakeHomeCalculationResponse:
       type: object
-      required: [salary, total_deductions, take_home, unit, provisional]
+      required: [salary, total_deductions, take_home, unit, average_income_tax_rate, marginal_income_tax_rate, provisional]
       properties:
         salary: {type: string, example: "70000.00"}
         total_deductions:
@@ -149,6 +149,10 @@ components:
           example: "53468.68"
         unit:
           $ref: "#/components/schemas/Unit"
+        average_income_tax_rate:
+          $ref: "#/components/schemas/Rate"
+        marginal_income_tax_rate:
+          $ref: "#/components/schemas/Rate"
         provisional:
           type: boolean
           description: True when the year's figures are provisional.
@@ -158,6 +162,18 @@ components:
           description: Present only when include_trace is true; one entry per form.
           items:
             $ref: "#/components/schemas/FormTrace"
+    Rate:
+      type: object
+      description: >-
+        A rate of income tax, as a fraction written as a decimal string and the unit that says how
+        to show it; when the unit is `as_percentage`, show the amount times 100 (0.2965 is 29.65%).
+      required: [amount, unit]
+      properties:
+        amount:
+          type: string
+          example: "0.2965"
+        unit:
+          $ref: "#/components/schemas/Unit"
     FormTrace:
       type: object
       required: [form, name, lines]
@@ -209,7 +225,7 @@ components:
       description: >-
         What a figure is counted in, as data for the caller to format; amounts stay plain decimal
         strings. The text is in the language of the trace (English).
-      required: [name, placement, singular, plural, spaced]
+      required: [name, placement, singular, plural, spaced, as_percentage]
       properties:
         name:
           type: string
@@ -231,6 +247,12 @@ components:
         spaced:
           type: boolean
           description: Whether one space separates the text from the number.
+          example: false
+        as_percentage:
+          type: boolean
+          description: >-
+            True when the amounts of this unit are fractions that are shown as percentages: show
+            the amount times 100 before the text (0.2965 is 29.65%).
           example: false
     ListJurisdictionsResponse:
       type: object

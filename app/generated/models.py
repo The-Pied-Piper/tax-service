@@ -86,6 +86,13 @@ class Unit(BaseModel):
             description="Whether one space separates the text from the number.", examples=[False]
         ),
     ]
+    as_percentage: Annotated[
+        bool,
+        Field(
+            description="True when the amounts of this unit are fractions that are shown as percentages: show the amount times 100 before the text (0.2965 is 29.65%).",
+            examples=[False],
+        ),
+    ]
 
 
 class JurisdictionYear(BaseModel):
@@ -120,6 +127,18 @@ class Error(BaseModel):
             description="Request field at fault, when there is one.", examples=["jurisdiction_code"]
         ),
     ] = None
+
+
+class Rate(BaseModel):
+    """
+    A rate of income tax, as a fraction written as a decimal string and the unit that says how to show it; when the unit is `as_percentage`, show the amount times 100 (0.2965 is 29.65%).
+    """
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    amount: Annotated[str, Field(examples=["0.2965"])]
+    unit: Unit
 
 
 class TraceLine(BaseModel):
@@ -208,6 +227,8 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
         str, Field(description="Salary minus total deductions.", examples=["53468.68"])
     ]
     unit: Unit
+    average_income_tax_rate: Rate
+    marginal_income_tax_rate: Rate
     provisional: Annotated[
         bool, Field(description="True when the year's figures are provisional.", examples=[False])
     ]
