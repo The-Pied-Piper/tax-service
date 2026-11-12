@@ -1,0 +1,80 @@
+name: Release push
+
+# Reusable: called by release.yml on main. Builds the released commit and pushes it to the
+# prod ECR repository as sha-<commit> and the release tag (the tag the function will run),
+# through the prod-image role. The job waits in the prod-image GitHub environment for
+# Umar's approval before any step runs. It never runs on its own.
+# Actions are pinned by commit; Dependabot (github-actions) keeps the tags in the comments current.
+
+on:
+  workflow_call:
+    outputs:
+      digest:
+        description: The sha256 digest of the pushed image.
+        value: ${{ jobs.push.outputs.digest }}
+
+permissions: {}
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    # Variables of this environment (not secrets): AWS_ACCOUNT_ID_PROD and
+    # AWS_ECR_PUSH_ROLE_ARN_PROD. The role trusts only this environment.
+    environment: prod-image
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Check this is a release of a version tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ github.event.release.tag_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$EVENT_NAME" == release ]] || { echo "not a release event" >&2; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
+          [[ "$REF" == "refs/tags/$TAG" ]] || { echo "the run is not for the release tag" >&2; exit 1; }
+
+      # The released commit, with full history so it can be compared with main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The released commit must already be on main (main only takes reviewed pull
+      # requests with green CI): a tag on any other commit is refused before AWS is touched.
+      # The checkout above fetched every branch, so origin/main is here; the token is not
+      # kept after checkout, so no second fetch.
+      - name: Check the commit is on main
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || { echo "the released commit is not on main" >&2; exit 1; }
+
+      # Before the credentials exist, so no third-party action runs while they do.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ECR_PUSH_ROLE_ARN_PROD }}
+          role-session-name: tax-service-release-push-${{ github.run_id }}
+          role-duration-seconds: 1800
+          aws-region: ca-central-1
+
+      # The same command as pushing by hand: tags sha-<commit> and the release tag, and
+      # prints the image digest.
+      - name: Push the image
+        id: push
+        env:
+          ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_PROD }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || { echo "unexpected account id" >&2; exit 1; }
+          ./dev.sh push-image prod "$ACCOUNT_ID" "$TAG" | tee push.log
+          digest="$(sed -n 's/^digest = "\(sha256:[0-9a-f]\{64\}\)"$/\1/p' push.log)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "no image digest in the push output" >&2; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
