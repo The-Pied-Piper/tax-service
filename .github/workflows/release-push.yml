@@ -47,11 +47,15 @@ jobs:
 
       # The released commit must already be on main (main only takes reviewed pull
       # requests with green CI): a tag on any other commit is refused before AWS is touched.
+      # The checkout above fetched every branch, so origin/main is here; the token is not
+      # kept after checkout, so no second fetch.
       - name: Check the commit is on main
         run: |
           set -euo pipefail
-          git fetch --no-tags origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD || { echo "the released commit is not on main" >&2; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main || { echo "the released commit is not on main" >&2; exit 1; }
+
+      # Before the credentials exist, so no third-party action runs while they do.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
@@ -59,8 +63,6 @@ jobs:
           role-session-name: tax-service-release-push-${{ github.run_id }}
           role-duration-seconds: 1800
           aws-region: ca-central-1
-
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # The same command as pushing by hand: tags sha-<commit> and the release tag, and
       # prints the image digest.

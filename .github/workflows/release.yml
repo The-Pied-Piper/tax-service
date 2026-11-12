@@ -16,12 +16,15 @@ on:
 permissions: {}
 
 concurrency:
-  # One release at a time, and never cancel one half-way.
+  # One release at a time, and never cancel one half-way. (A convenience, not a guard: this
+  # file comes from the tagged commit.)
   group: release-prod
   cancel-in-progress: false
 
 jobs:
   push:
+    # A pre-release does not go to prod.
+    if: ${{ !github.event.release.prerelease }}
     permissions:
       contents: read
       id-token: write
@@ -30,7 +33,6 @@ jobs:
   deploy:
     needs: push
     permissions:
-      contents: read
       id-token: write
     uses: The-Pied-Piper/tax-service/.github/workflows/release-deploy.yml@main
     with:

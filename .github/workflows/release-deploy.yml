@@ -25,7 +25,6 @@ jobs:
     # this environment.
     environment: prod-deploy
     permissions:
-      contents: read
       id-token: write
     steps:
       - name: Check this is a release and the image digest
@@ -45,6 +44,8 @@ jobs:
           [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "unexpected image digest" >&2; exit 1; }
           if [[ -z "$ROLE_ARN" || -z "$FUNCTION_NAME" ]]; then
             echo "The prod function is not set up yet (no deploy role or function name): nothing to deploy."
+            echo "::warning::Not deployed: the prod function is not set up yet (no deploy role or function name)."
+            echo "Not deployed: no prod function yet." >> "$GITHUB_STEP_SUMMARY"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -64,9 +65,18 @@ jobs:
           ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_PROD }}
           FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME_PROD }}
           DIGEST: ${{ inputs.digest }}
+          TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
           [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || { echo "unexpected account id" >&2; exit 1; }
+          # The caller file comes from the tagged commit, so the digest it passes is not
+          # trusted on its own: it must be the image that carries this release's tag AND the
+          # build tag of this commit (a build tag exists only if the push job passed its
+          # on-main check for that commit).
+          for t in "$TAG" "sha-${GITHUB_SHA:0:12}"; do
+            got="$(aws ecr batch-get-image --repository-name tax-service-prod --image-ids "imageTag=$t" --query 'images[0].imageId.imageDigest' --output text)"
+            [[ "$got" == "$DIGEST" ]] || { echo "the digest is not the image tagged $t" >&2; exit 1; }
+          done
           image_uri="$ACCOUNT_ID.dkr.ecr.ca-central-1.amazonaws.com/tax-service-prod@$DIGEST"
           aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$image_uri" --output text --query LastUpdateStatus
           # Waits until the update has finished; fails if it did not succeed.
