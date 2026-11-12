@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build the production image and push it to this service's ECR repository: ./dev.sh push-image <dev|prod> <aws-account-id>
+# Build the production image and push it to this service's ECR repository: ./dev.sh push-image <dev|prod> <aws-account-id> [release-tag]
+# The image is tagged sha-<12-character commit id>. With a release tag (for example v1) the same image also gets that tag.
 # Runs on the host and needs docker and the AWS CLI with credentials for that account in the usual AWS_* variables or profile.
 source "$(dirname "$0")/../scripts/_lib.sh"
 # (_lib.sh sets -euo pipefail: pipefail is what makes the login pipe below safe.)
@@ -10,8 +11,14 @@ REGION="${AWS_REGION:-ca-central-1}"
 
 env_name="${1:-}"
 account_id="${2:-}"
-if [[ "$env_name" != dev && "$env_name" != prod ]] || [[ ! "$account_id" =~ ^[0-9]{12}$ ]]; then
-    echo "usage: ./dev.sh push-image <dev|prod> <12-digit aws account id>" >&2
+release_tag="${3:-}"
+if [[ "$env_name" != dev && "$env_name" != prod ]] || [[ ! "$account_id" =~ ^[0-9]{12}$ ]] || [[ $# -gt 3 ]]; then
+    echo "usage: ./dev.sh push-image <dev|prod> <12-digit aws account id> [release tag such as v1]" >&2
+    exit 2
+fi
+# tax-infra keeps release tags (prefix v) forever and expires build tags (prefix sha-) after the newest 30.
+if [[ -n "$release_tag" && ! "$release_tag" =~ ^v[0-9A-Za-z._-]{0,127}$ ]]; then
+    echo "a release tag must start with v and use only letters, digits, dot, dash and underscore: $release_tag" >&2
     exit 2
 fi
 # The region ends up in the host name that receives the ECR password.
@@ -24,17 +31,46 @@ if [[ -n "$(git status --porcelain)" ]]; then
     exit 1
 fi
 
-# The tag names the commit (not a content hash).
-tag="$(git rev-parse --short=12 HEAD)"
+# The build tag names the commit (not a content hash); tax-infra expires old sha- tags.
+tag="sha-$(git rev-parse --short=12 HEAD)"
 registry="$account_id.dkr.ecr.$REGION.amazonaws.com"
 repository_name="$SERVICE_NAME-$env_name"
 
-# Tags are immutable in the repository, so an image already there is left alone.
+# Adds the release tag to the image that already carries the build tag.
+# Tags are immutable, so a release tag that exists must already point at this image.
+add_release_tag() {
+    [[ -n "$release_tag" ]] || return 0
+    local digest existing manifest
+    digest="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
+        --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)"
+    if existing="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
+        --image-ids "imageTag=$release_tag" --query 'imageDetails[0].imageDigest' --output text 2>&1)"; then
+        if [[ "$existing" == "$digest" ]]; then
+            echo "image $tag already has release tag $release_tag"
+            return 0
+        fi
+        echo "release tag $release_tag already points at a different image ($existing); choose a new one" >&2
+        return 1
+    elif [[ "$existing" != *ImageNotFoundException* ]]; then
+        echo "could not check $repository_name for release tag $release_tag: $existing" >&2
+        return 1
+    fi
+    manifest="$(aws ecr batch-get-image --region "$REGION" --repository-name "$repository_name" \
+        --image-ids "imageTag=$tag" --query 'images[0].imageManifest' --output text)"
+    aws ecr put-image --region "$REGION" --repository-name "$repository_name" \
+        --image-tag "$release_tag" --image-manifest "$manifest" >/dev/null
+    echo "added release tag $release_tag to $tag"
+}
+print_result() {
+    echo "image_tag = \"${release_tag:-$tag}\""
+}
+
 # Only "not found" means absent; any other error (credentials, region, no repository) stops here.
 if found="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
     --image-ids "imageTag=$tag" 2>&1)"; then
     echo "image $tag is already in $repository_name; nothing to push"
-    echo "image_tag = \"$tag\""
+    add_release_tag
+    print_result
     exit 0
 elif [[ "$found" != *ImageNotFoundException* ]]; then
     echo "could not check $repository_name for image $tag: $found" >&2
@@ -51,4 +87,5 @@ aws ecr get-login-password --region "$REGION" | docker login --username AWS --pa
 git archive HEAD | docker buildx build --platform linux/amd64 --target prod --provenance=false --push \
     -t "$registry/$repository_name:$tag" -
 echo "pushed $registry/$repository_name:$tag"
-echo "image_tag = \"$tag\""
+add_release_tag
+print_result
