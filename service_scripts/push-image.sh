@@ -37,8 +37,6 @@ registry="$account_id.dkr.ecr.$REGION.amazonaws.com"
 repository_name="$SERVICE_NAME-$env_name"
 
 digest=""
-# Adds the release tag to the image that already carries the build tag.
-# Tags are immutable, so a release tag that exists must already point at this image.
 # Reads the digest of the image that carries the build tag; stops unless it is a real digest.
 read_digest() {
     digest="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
@@ -48,6 +46,8 @@ read_digest() {
         exit 1
     fi
 }
+# Adds the release tag to the image that already carries the build tag.
+# Tags are immutable, so a release tag that exists must already point at this image.
 add_release_tag() {
     [[ -n "$release_tag" ]] || return 0
     local existing manifest
