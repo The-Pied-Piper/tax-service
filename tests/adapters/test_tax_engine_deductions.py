@@ -9,10 +9,11 @@ from tax_engine.registrations import artifact_kinds
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.take_home import SUPPORTED_JURISDICTIONS, Unit
+from app.domain.take_home import SUPPORTED_JURISDICTIONS, Rate, Unit
 
-CAD = Unit("ca/cad", "before", "CA$", "CA$", False)
-MONTHS = Unit("core/months", "after", "month", "months", True)
+CAD = Unit("ca/cad", "before", "CA$", "CA$", False, False)
+MONTHS = Unit("core/months", "after", "month", "months", True, False)
+PERCENT = Unit("core/percent", "after", "%", "%", False, True)
 ONTARIO_ITEMS = SUPPORTED_JURISDICTIONS[0].deduction_items  # CA-ON, the only jurisdiction
 
 
@@ -32,6 +33,25 @@ async def test_70000_in_ontario() -> None:
         "income_tax": Decimal("11497.09"),
     }
     assert deductions.trace == ()
+
+
+@pytest.mark.parametrize(
+    ("year", "average", "marginal"),
+    [(2025, "0.1642", "0.2965"), (2026, "0.1591", "0.2965")],
+)
+async def test_the_average_and_marginal_rates_at_70000_with_their_unit(
+    year: int, average: str, marginal: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year=year)
+    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
+    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
+    assert deductions.average_income_tax_rate.unit.as_percentage is True
+
+
+async def test_the_money_unit_is_not_a_percentage() -> None:
+    deductions = await calculate(TaxEngineDeductions())
+    assert deductions.unit == CAD
+    assert deductions.unit.as_percentage is False
 
 
 async def test_trace_lines_are_text_with_a_figure() -> None:
@@ -70,7 +90,8 @@ async def test_trace_lines_carry_the_unit_of_their_figure() -> None:
     lines = [line for form in deductions.trace for line in form.lines]
     assert MONTHS in [line.unit for line in lines]
     assert None in [line.unit for line in lines]
-    assert {line.unit for line in lines} <= {CAD, MONTHS, None}
+    assert PERCENT in [line.unit for line in lines]
+    assert {line.unit for line in lines} <= {CAD, MONTHS, PERCENT, None}
 
 
 class FailingEngine:
@@ -102,7 +123,7 @@ class FakeSheet:
 
 class FakeEngine:
     def compute(self, *args: Any) -> Any:
-        return {"ca/t2204": [FakeSheet()]}
+        return {"ca/t2204": [FakeSheet()], "ca-on/return": [FakeSheet()]}
 
 
 async def test_what_the_engine_does_not_title_is_absent() -> None:
@@ -110,8 +131,8 @@ async def test_what_the_engine_does_not_title_is_absent() -> None:
         FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
     )
     deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", ("ei",), True)
-    (form,) = deductions.trace
-    assert (form.form, form.name) == ("ca/t2204", None)
+    (form,) = (f for f in deductions.trace if f.form == "ca/t2204")
+    assert form.name is None
     (line,) = form.lines
     assert (line.label, line.name, line.reference) == (None, None, None)
 
@@ -163,6 +184,10 @@ async def test_every_supported_jurisdiction_year_and_language_works_with_the_rea
                 assert [f.item for f in deductions.figures] == list(jurisdiction.deduction_items)
 
 
+AVERAGE_RATE = "ca-on/average_income_tax_rate"
+MARGINAL_RATE = "ca-on/marginal_tax_rate"
+
+
 class UnitSheet:
     """A worksheet whose figures each have the unit given for their kind (None for no unit)."""
 
@@ -172,6 +197,8 @@ class UnitSheet:
     def __init__(self, units: dict[str, str | None]) -> None:
         kinds = artifact_kinds()
         self._units = {kinds.kind(kind): unit for kind, unit in units.items()}
+        for kind in (AVERAGE_RATE, MARGINAL_RATE):
+            self._units[kinds.kind(kind)] = "core/percent"
 
     def get(self, kind: Any) -> Any:
         unit = self._units[kind]
@@ -185,7 +212,7 @@ class UnitEngine:
 
     def compute(self, *args: Any) -> Any:
         sheet = UnitSheet(self._units)
-        return {"ca/t2204": [sheet], "ca/schedule_8": [sheet]}
+        return {"ca/t2204": [sheet], "ca/schedule_8": [sheet], "ca-on/return": [sheet]}
 
 
 EI = "ca/t2204_line_16"

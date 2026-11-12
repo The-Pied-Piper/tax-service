@@ -17,13 +17,29 @@ from app.settings import Settings
 
 BASE = "/api/v1"
 COMPUTE = f"{BASE}/take-home-calculations:compute"
-CAD = {"name": "ca/cad", "placement": "before", "singular": "CA$", "plural": "CA$", "spaced": False}
+CAD = {
+    "name": "ca/cad",
+    "placement": "before",
+    "singular": "CA$",
+    "plural": "CA$",
+    "spaced": False,
+    "as_percentage": False,
+}
+PERCENT = {
+    "name": "core/percent",
+    "placement": "after",
+    "singular": "%",
+    "plural": "%",
+    "spaced": False,
+    "as_percentage": True,
+}
 MONTHS = {
     "name": "core/months",
     "placement": "after",
     "singular": "month",
     "plural": "months",
     "spaced": True,
+    "as_percentage": False,
 }
 
 
@@ -41,6 +57,8 @@ def test_70000_in_ontario_2025(client: TestClient) -> None:
         "take_home": "53468.68",
         "provisional": False,
         "unit": CAD,
+        "average_income_tax_rate": {"amount": "0.1642", "unit": PERCENT},
+        "marginal_income_tax_rate": {"amount": "0.2965", "unit": PERCENT},
     }
 
 
@@ -49,6 +67,22 @@ def test_70000_in_ontario_2026_is_provisional(client: TestClient) -> None:
     assert body["take_home"] == "53786.25"
     assert body["provisional"] is True
     assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": "0.1591", "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": "0.2965", "unit": PERCENT}
+
+
+@pytest.mark.parametrize(
+    ("year", "average", "marginal"),
+    [(2025, "0.1642", "0.2965"), (2026, "0.1591", "0.2965")],
+)
+def test_the_rates_are_also_in_the_response_with_the_trace(
+    client: TestClient, year: int, average: str, marginal: str
+) -> None:
+    body = compute(client, year=year, include_trace=True).json()
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert body["unit"] == CAD  # the money unit is unaffected
+    assert body["trace"]
 
 
 @pytest.mark.parametrize("year", [2025, 2026])
@@ -61,8 +95,9 @@ def test_every_trace_line_carries_its_unit_and_money_rows_the_top_level_one(
     units = [line["unit"] for line in lines]
     assert units.count(body["unit"]) > 100  # the money rows
     assert None in units  # a figure without a unit is an explicit null
-    assert set(map(str, filter(None, units))) <= {str(CAD), str(MONTHS)}
+    assert set(map(str, filter(None, units))) <= {str(CAD), str(MONTHS), str(PERCENT)}
     assert MONTHS in units  # a count of months goes after the number
+    assert PERCENT in units  # a rate is a fraction shown as a percentage
 
 
 def test_the_ei_row_on_t2204_is_in_canadian_dollars(client: TestClient) -> None:

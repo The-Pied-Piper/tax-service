@@ -29,13 +29,16 @@ class Unit:
     """What a figure is counted in, as data for the caller to format. `name` is the calculator's
     identifier of the unit, opaque: compare it, do not parse it. `placement` is `before` or
     `after` the number; `singular` is the text beside exactly 1 and `plural` the text beside any
-    other number; `spaced` says whether one space separates the text from the number."""
+    other number; `spaced` says whether one space separates the text from the number.
+    `as_percentage` says the figures are fractions written as percentages: 0.2965 is shown as
+    "29.65%"."""
 
     name: str
     placement: str
     singular: str
     plural: str
     spaced: bool
+    as_percentage: bool
 
 
 @dataclass(frozen=True)
@@ -78,13 +81,24 @@ class DeductionFigure:
 
 
 @dataclass(frozen=True)
+class Rate:
+    """A rate of income tax and the unit it is in. `amount` is the figure as the calculator gives
+    it (a fraction, not a percentage); `unit` says how to write it."""
+
+    amount: Decimal
+    unit: Unit
+
+
+@dataclass(frozen=True)
 class Deductions:
     """The figures asked for, with the steps that explain them. `unit` is the one unit all the
-    figures are in."""
+    figures are in. The two rates have their own units and are not part of the figures."""
 
     figures: tuple[DeductionFigure, ...]
     trace: tuple[FormTrace, ...]
     unit: Unit
+    average_income_tax_rate: Rate
+    marginal_income_tax_rate: Rate
 
 
 @dataclass(frozen=True)
@@ -94,6 +108,8 @@ class TakeHomeResult:
     take_home: Decimal
     provisional: bool
     unit: Unit
+    average_income_tax_rate: Rate
+    marginal_income_tax_rate: Rate
     trace: tuple[FormTrace, ...] | None
 
     @classmethod
@@ -103,6 +119,8 @@ class TakeHomeResult:
         figures: tuple[DeductionFigure, ...],
         provisional: bool,
         unit: Unit,
+        average_income_tax_rate: Rate,
+        marginal_income_tax_rate: Rate,
         trace: tuple[FormTrace, ...] | None,
     ) -> TakeHomeResult:
         """Take-home pay is the salary minus the sum of the figures, in whole cents."""
@@ -113,6 +131,8 @@ class TakeHomeResult:
             take_home=(salary - total).quantize(CENTS),
             provisional=provisional,
             unit=unit,
+            average_income_tax_rate=average_income_tax_rate,
+            marginal_income_tax_rate=marginal_income_tax_rate,
             trace=trace,
         )
 

@@ -3,10 +3,13 @@
 from decimal import Decimal
 
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
-from app.domain.take_home import FormTrace, TakeHomeResult, TraceEntry, Unit
+from app.domain.take_home import FormTrace, Rate, TakeHomeResult, TraceEntry, Unit
 from app.generated.models import ComputeTakeHomeCalculationRequest
 
-CAD = Unit("ca/cad", "before", "CA$", "CA$", False)
+CAD = Unit("ca/cad", "before", "CA$", "CA$", False, False)
+PERCENT = Unit("core/percent", "after", "%", "%", False, True)
+AVERAGE = Rate(Decimal("0.1642"), PERCENT)
+MARGINAL = Rate(Decimal("0.2965"), PERCENT)
 
 
 class Recorder:
@@ -28,6 +31,8 @@ class Recorder:
             take_home=salary,
             provisional=False,
             unit=CAD,
+            average_income_tax_rate=AVERAGE,
+            marginal_income_tax_rate=MARGINAL,
             trace=None,
         )
 
@@ -72,6 +77,8 @@ class Tracing:
             take_home=salary,
             provisional=False,
             unit=CAD,
+            average_income_tax_rate=AVERAGE,
+            marginal_income_tax_rate=MARGINAL,
             trace=trace,
         )
 
@@ -106,3 +113,27 @@ async def test_the_unit_goes_out_with_the_result() -> None:
         "CA$",
         False,
     )
+    assert unit.as_percentage is False
+
+
+async def test_the_rates_go_out_as_plain_strings_with_their_unit() -> None:
+    request = ComputeTakeHomeCalculationRequest(
+        jurisdiction_code="CA-ON", year=2025, salary="70000.00"
+    )
+    response = await TakeHomeCalculationsRequestAdapter(Tracing()).compute_take_home_calculation(
+        request
+    )
+    for rate, amount in (
+        (response.average_income_tax_rate, "0.1642"),
+        (response.marginal_income_tax_rate, "0.2965"),
+    ):
+        assert rate.amount == amount
+        unit = rate.unit
+        assert (unit.name, unit.placement, unit.singular, unit.plural, unit.spaced) == (
+            "core/percent",
+            "after",
+            "%",
+            "%",
+            False,
+        )
+        assert unit.as_percentage is True

@@ -11,13 +11,17 @@ from app.domain.take_home import (
     DeductionFigure,
     Deductions,
     FormTrace,
+    Rate,
     TakeHomeResult,
     TraceEntry,
     Unit,
     find_jurisdiction,
 )
 
-CAD = Unit("ca/cad", "before", "CA$", "CA$", False)
+CAD = Unit("ca/cad", "before", "CA$", "CA$", False, False)
+PERCENT = Unit("core/percent", "after", "%", "%", False, True)
+AVERAGE = Rate(Decimal("0.1642"), PERCENT)
+MARGINAL = Rate(Decimal("0.2965"), PERCENT)
 TRACE = (
     FormTrace(
         "ex/form",
@@ -51,7 +55,13 @@ class FakeDeductions:
     ) -> Deductions:
         self.calls.append((jurisdiction_code, year, salary, language_code, items, with_trace))
         figures = tuple(DeductionFigure(item, Decimal(amount)) for item, amount in self.figures)
-        return Deductions(figures, TRACE if with_trace else (), unit=CAD)
+        return Deductions(
+            figures,
+            TRACE if with_trace else (),
+            unit=CAD,
+            average_income_tax_rate=AVERAGE,
+            marginal_income_tax_rate=MARGINAL,
+        )
 
 
 async def compute(
@@ -140,6 +150,14 @@ async def test_the_unit_and_each_trace_units_are_passed_through() -> None:
     assert result.unit == CAD
     assert result.trace is not None
     assert result.trace[0].lines[0].unit == CAD
+
+
+async def test_the_rates_are_passed_through_and_are_not_deductions() -> None:
+    result = await compute(FakeDeductions(), trace=True)
+    assert result.average_income_tax_rate == AVERAGE
+    assert result.marginal_income_tax_rate == MARGINAL
+    assert result.unit == CAD
+    assert result.take_home == Decimal("53468.68")
 
 
 async def test_a_negative_figure_is_summed_and_take_home_can_exceed_the_salary() -> None:

@@ -11,12 +11,14 @@ from decimal import Decimal
 
 from app.application.ports.take_home_calculations_port import TakeHomeCalculationsPort
 from app.domain.take_home import FormTrace as DomainFormTrace
+from app.domain.take_home import Rate as DomainRate
 from app.domain.take_home import Unit as DomainUnit
 from app.generated.models import (
     ComputeTakeHomeCalculationRequest,
     ComputeTakeHomeCalculationResponse,
     FormTrace,
     Placement,
+    Rate,
     TraceLine,
     Unit,
 )
@@ -43,6 +45,8 @@ class TakeHomeCalculationsRequestAdapter:
             take_home=str(result.take_home),
             provisional=result.provisional,
             unit=_unit(result.unit),
+            average_income_tax_rate=_rate(result.average_income_tax_rate),
+            marginal_income_tax_rate=_rate(result.marginal_income_tax_rate),
         )
         if result.trace is not None:
             response.trace = [_form_trace(t) for t in result.trace]
@@ -74,4 +78,9 @@ def _unit(unit: DomainUnit) -> Unit:
         singular=unit.singular,
         plural=unit.plural,
         spaced=unit.spaced,
+        as_percentage=unit.as_percentage,
     )
+
+
+def _rate(rate: DomainRate) -> Rate:
+    return Rate(amount=str(rate.amount), unit=_unit(rate.unit))

@@ -2,9 +2,11 @@
 
 It only maps each deduction item the application asks for to the engine's form and kind, and reads
 the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
-line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). It also
-reads the unit of each trace row off the worksheet, and the unit the figures are in: they must all
-have the same one, else the deductions are unavailable. What "total deductions" is made of is
+line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). The
+average and marginal income tax rates are read the same way off the Ontario return, each with its
+own unit; a rate without a unit makes the deductions unavailable. It also reads the unit of each
+trace row off the worksheet, and the unit the figures are in: they must all have the same one (the
+rates do not take part), else the deductions are unavailable. What "total deductions" is made of is
 decided by the domain. The engine is synchronous, so it runs on
 a worker thread here; the application only sees an async port. Everything the engine raises is
 translated into the port's own errors.
@@ -30,7 +32,7 @@ from tax_engine.jurisdictions.ca.catalog.income import EMPLOYMENT_INCOME
 from tax_engine.registrations import artifact_kinds
 
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEntry, Unit
+from app.domain.take_home import DeductionFigure, Deductions, FormTrace, Rate, TraceEntry, Unit
 
 ENGLISH = "en"
 
@@ -42,6 +44,9 @@ FIGURES = {
     "ei": ("ca/t2204", "ca/t2204_line_16"),
     "income_tax": ("ca/t1_tax_and_credits", "ca/refund_or_balance_owing"),
 }
+# The engine's (form, kind) of the average and the marginal income tax rate.
+AVERAGE_RATE = ("ca-on/return", "ca-on/average_income_tax_rate")
+MARGINAL_RATE = ("ca-on/return", "ca-on/marginal_tax_rate")
 
 
 class Engine(Protocol):
@@ -72,6 +77,7 @@ def _unit(unit: EngineUnit) -> Unit:
         singular=text.singular,
         plural=text.plural,
         spaced=text.spaced,
+        as_percentage=text.as_percentage,
     )
 
 
@@ -125,15 +131,26 @@ class TaxEngineDeductions:
 
         units: list[EngineUnit | None] = []
 
-        def figure(item: str) -> Decimal:
-            form, kind = FIGURES[item]
+        def read(form: str, kind: str) -> tuple[Decimal, EngineUnit | None]:
             (sheet,) = sheets[form]
             artifact = sheet.get(self._kinds.kind(kind))
             value = artifact.value
             if not isinstance(value, Decimal):
                 raise TypeError(f"{kind} is not a decimal")
-            units.append(artifact.unit)
+            return value, artifact.unit
+
+        def figure(item: str) -> Decimal:
+            value, unit = read(*FIGURES[item])
+            units.append(unit)
             return value
+
+        def rate(form_and_kind: tuple[str, str]) -> Rate:
+            value, unit = read(*form_and_kind)
+            if unit is None:
+                raise DeductionsUnavailableError(
+                    f"{jurisdiction_code} {year}: {form_and_kind[1]} has no unit"
+                )
+            return Rate(value, _unit(unit))
 
         trace: list[FormTrace] = []
         if with_trace:
@@ -159,4 +176,10 @@ class TaxEngineDeductions:
             raise DeductionsUnavailableError(
                 f"{jurisdiction_code} {year}: the figures do not share one unit"
             )
-        return Deductions(figures=figures, trace=tuple(trace), unit=_unit(unit))
+        return Deductions(
+            figures=figures,
+            trace=tuple(trace),
+            unit=_unit(unit),
+            average_income_tax_rate=rate(AVERAGE_RATE),
+            marginal_income_tax_rate=rate(MARGINAL_RATE),
+        )
