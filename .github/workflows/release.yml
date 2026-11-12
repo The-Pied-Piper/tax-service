@@ -1,0 +1,37 @@
+name: Release
+
+# Publishing a GitHub release (a tag like v1 or v0.1.1) pushes that commit's image to the
+# prod ECR repository and then switches the prod Lambda function to it. This file is only
+# the trigger: it comes from the tagged commit, so it holds no logic and no credentials of
+# its own. The two jobs call reusable workflows pinned to main, and the AWS roles trust
+# only those files as they are on main (and only a v tag, and only the GitHub environments
+# prod-image and prod-deploy, which need Umar's approval). Everything that checks the
+# release (event, tag shape, commit on main) runs in those files, before any role is assumed.
+# See release-push.yml and release-deploy.yml.
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+concurrency:
+  # One release at a time, and never cancel one half-way.
+  group: release-prod
+  cancel-in-progress: false
+
+jobs:
+  push:
+    permissions:
+      contents: read
+      id-token: write
+    uses: The-Pied-Piper/tax-service/.github/workflows/release-push.yml@main
+
+  deploy:
+    needs: push
+    permissions:
+      contents: read
+      id-token: write
+    uses: The-Pied-Piper/tax-service/.github/workflows/release-deploy.yml@main
+    with:
+      digest: ${{ needs.push.outputs.digest }}

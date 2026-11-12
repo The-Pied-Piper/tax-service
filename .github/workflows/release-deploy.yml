@@ -1,0 +1,92 @@
+name: Release deploy
+
+# Reusable: called by release.yml on main, after release-push.yml. Points the prod Lambda
+# function at the image that was just pushed, by its digest, through the prod-deploy role.
+# The job waits in the prod-deploy GitHub environment for Umar's approval. It never runs
+# on its own. Until the function exists (tax-infra creates it once the first release image
+# is named), the variables below are unset and this job ends green without deploying.
+# Actions are pinned by commit; Dependabot (github-actions) keeps the tags in the comments current.
+
+on:
+  workflow_call:
+    inputs:
+      digest:
+        description: The sha256 digest of the image release-push.yml pushed.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Variables of this environment (not secrets): AWS_ACCOUNT_ID_PROD,
+    # AWS_LAMBDA_DEPLOY_ROLE_ARN_PROD and LAMBDA_FUNCTION_NAME_PROD. The role trusts only
+    # this environment.
+    environment: prod-deploy
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check this is a release and the image digest
+        id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG: ${{ github.event.release.tag_name }}
+          REF: ${{ github.ref }}
+          DIGEST: ${{ inputs.digest }}
+          ROLE_ARN: ${{ vars.AWS_LAMBDA_DEPLOY_ROLE_ARN_PROD }}
+          FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME_PROD }}
+        run: |
+          set -euo pipefail
+          [[ "$EVENT_NAME" == release ]] || { echo "not a release event" >&2; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
+          [[ "$REF" == "refs/tags/$TAG" ]] || { echo "the run is not for the release tag" >&2; exit 1; }
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "unexpected image digest" >&2; exit 1; }
+          if [[ -z "$ROLE_ARN" || -z "$FUNCTION_NAME" ]]; then
+            echo "The prod function is not set up yet (no deploy role or function name): nothing to deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        if: ${{ steps.check.outputs.ready == 'true' }}
+        with:
+          role-to-assume: ${{ vars.AWS_LAMBDA_DEPLOY_ROLE_ARN_PROD }}
+          role-session-name: tax-service-release-deploy-${{ github.run_id }}
+          role-duration-seconds: 900
+          aws-region: ca-central-1
+
+      - name: Switch the function to the released image
+        if: ${{ steps.check.outputs.ready == 'true' }}
+        env:
+          ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID_PROD }}
+          FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME_PROD }}
+          DIGEST: ${{ inputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || { echo "unexpected account id" >&2; exit 1; }
+          image_uri="$ACCOUNT_ID.dkr.ecr.ca-central-1.amazonaws.com/tax-service-prod@$DIGEST"
+          aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$image_uri" --output text --query LastUpdateStatus
+          # Waits until the update has finished; fails if it did not succeed.
+          aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+          echo "prod now runs $image_uri"
+
+      # The prod API must answer healthy after the switch. This shows the API is up, not
+      # which version answers (readyz returns no version). A failure turns the run red and
+      # leaves the person to roll back (publish the previous release again as a new number;
+      # tax-infra #70 will add a rollback).
+      - name: Check the API is ready
+        if: ${{ steps.check.outputs.ready == 'true' }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if curl --fail --silent --show-error --max-time 10 https://api.aftertaxlens.com/api/v1/status/readyz; then
+              echo
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "the API did not become ready after the deploy" >&2
+          exit 1

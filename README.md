@@ -133,6 +133,24 @@ never expires; prod must run a release tag. The adapter is pinned by digest.
   to that merge's image (anyone who can re-run a workflow can do this; it is the
   stop-gap rollback route, and #70 will replace it).
 
+### Releasing to prod
+
+Prod runs only a release image, and only a published GitHub release changes it.
+Publishing a release with a version tag (`v1`, `v0.1.1`) starts
+`.github/workflows/release.yml`, which is only a trigger. It calls two reusable
+workflows pinned to `main`: `release-push.yml` builds the tagged commit and pushes it as
+`sha-<commit>` and the release tag, and `release-deploy.yml` points the prod function at
+that image by its digest and checks `https://api.aftertaxlens.com/api/v1/status/readyz`.
+Each job waits for your approval in its own GitHub environment (`prod-image`, then
+`prod-deploy`), and its AWS role (tax-infra `release_github`) trusts only that
+environment, a `v*` tag and its own workflow file as it is on `main`. Before any role is
+assumed the push job checks that the event is a release, the tag looks like a version and
+the commit is already on `main`. Environment variables (not secrets): `AWS_ACCOUNT_ID_PROD`
+and `AWS_ECR_PUSH_ROLE_ARN_PROD` in `prod-image`; `AWS_ACCOUNT_ID_PROD`,
+`AWS_LAMBDA_DEPLOY_ROLE_ARN_PROD` and `LAMBDA_FUNCTION_NAME_PROD` in `prod-deploy`. Until
+the function exists the deploy job ends green without deploying. Publish releases only
+from the Releases page, never by pushing a `v` tag from a terminal.
+
 The role (tax-infra) must trust only this repository's `main` branch (an exact
 `sub` of `repo:The-Pied-Piper/tax-service:ref:refs/heads/main`, audience
 `sts.amazonaws.com`), live in the dev account, and be allowed to push and
