@@ -198,7 +198,7 @@ class UnitSheet:
         kinds = artifact_kinds()
         self._units = {kinds.kind(kind): unit for kind, unit in units.items()}
         for kind in (AVERAGE_RATE, MARGINAL_RATE):
-            self._units[kinds.kind(kind)] = "core/percent"
+            self._units.setdefault(kinds.kind(kind), "core/percent")
 
     def get(self, kind: Any) -> Any:
         unit = self._units[kind]
@@ -242,3 +242,9 @@ async def test_figures_that_do_not_share_one_unit_are_the_ports_error(
 ) -> None:
     with pytest.raises(DeductionsUnavailableError):
         await deductions_with_units(units)
+
+
+@pytest.mark.parametrize("rate", [AVERAGE_RATE, MARGINAL_RATE])
+async def test_a_rate_without_a_unit_is_the_ports_error(rate: str) -> None:
+    with pytest.raises(DeductionsUnavailableError):
+        await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad", rate: None})
