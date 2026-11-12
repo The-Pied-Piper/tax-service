@@ -2,8 +2,10 @@
 
 It only maps each deduction item the application asks for to the engine's form and kind, and reads
 the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
-line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). What
-"total deductions" is made of is decided by the domain. The engine is synchronous, so it runs on
+line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). It also
+reads the unit of each trace row off the worksheet, and the unit the figures are in: they must all
+have the same one, else the deductions are unavailable. What "total deductions" is made of is
+decided by the domain. The engine is synchronous, so it runs on
 a worker thread here; the application only sees an async port. Everything the engine raises is
 translated into the port's own errors.
 """
@@ -17,16 +19,18 @@ from typing import Protocol
 
 from tax_engine import build_tax_computation
 from tax_engine.adapters.inbound.trace_english import EnglishTraceRenderer
+from tax_engine.adapters.inbound.trace_english.unit_text import EnglishUnitTextRegistry
 from tax_engine.domain.artifact import Artifact
 from tax_engine.domain.errors import DomainError as EngineError
 from tax_engine.domain.jurisdiction_code import JurisdictionCode
 from tax_engine.domain.trace import TraceLine
+from tax_engine.domain.unit import Unit as EngineUnit
 from tax_engine.domain.worksheet import Worksheet
 from tax_engine.jurisdictions.ca.catalog.income import EMPLOYMENT_INCOME
 from tax_engine.registrations import artifact_kinds
 
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEntry
+from app.domain.take_home import DeductionFigure, Deductions, FormTrace, TraceEntry, Unit
 
 ENGLISH = "en"
 
@@ -57,6 +61,24 @@ class Renderer(Protocol):
 def _present(text: str | None) -> str | None:
     """The text, or None when there is none (the engine may give nothing or an empty string)."""
     return text or None
+
+
+def _unit(unit: EngineUnit) -> Unit:
+    """The domain unit for the engine's, with its English text."""
+    text = EnglishUnitTextRegistry.shared().for_unit(unit)
+    return Unit(
+        name=unit.identifier,
+        placement=text.placement.value,
+        singular=text.singular,
+        plural=text.plural,
+        spaced=text.spaced,
+    )
+
+
+def _line_unit(sheet: Worksheet, line: TraceLine) -> Unit | None:
+    """The unit of the figure the line is about; None if it is about none or it has none."""
+    unit = None if line.label is None else sheet.unit(line.label)
+    return None if unit is None else _unit(unit)
 
 
 class TaxEngineDeductions:
@@ -101,12 +123,16 @@ class TaxEngineDeductions:
             JurisdictionCode(jurisdiction_code), year, Artifact(EMPLOYMENT_INCOME, salary)
         )
 
+        units: list[EngineUnit | None] = []
+
         def figure(item: str) -> Decimal:
             form, kind = FIGURES[item]
             (sheet,) = sheets[form]
-            value = sheet.get(self._kinds.kind(kind)).value
+            artifact = sheet.get(self._kinds.kind(kind))
+            value = artifact.value
             if not isinstance(value, Decimal):
                 raise TypeError(f"{kind} is not a decimal")
+            units.append(artifact.unit)
             return value
 
         trace: list[FormTrace] = []
@@ -122,11 +148,15 @@ class TaxEngineDeductions:
                             ),
                             amount=line.amount,
                             text=self._renderer.render(line, sheet),
+                            unit=_line_unit(sheet, line),
                         )
                         for line in sheet.trace
                     )
                     trace.append(FormTrace(form=form, name=_present(sheet.form_title), lines=lines))
-        return Deductions(
-            figures=tuple(DeductionFigure(item, figure(item)) for item in items),
-            trace=tuple(trace),
-        )
+        figures = tuple(DeductionFigure(item, figure(item)) for item in items)
+        unit = units[0] if units else None
+        if unit is None or any(other != unit for other in units):
+            raise DeductionsUnavailableError(
+                f"{jurisdiction_code} {year}: the figures do not share one unit"
+            )
+        return Deductions(figures=figures, trace=tuple(trace), unit=_unit(unit))

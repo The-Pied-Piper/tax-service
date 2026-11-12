@@ -13,14 +13,16 @@ from app.domain.take_home import (
     FormTrace,
     TakeHomeResult,
     TraceEntry,
+    Unit,
     find_jurisdiction,
 )
 
+CAD = Unit("ca/cad", "before", "CA$", "CA$", False)
 TRACE = (
     FormTrace(
         "ex/form",
         "Example form",
-        (TraceEntry("ex_line", "Example line", "1", Decimal("1.00"), "one"),),
+        (TraceEntry("ex_line", "Example line", "1", Decimal("1.00"), "one", unit=CAD),),
     ),
 )
 # What a $70,000 salary pays of each item in CA-ON 2025; they add up to 16531.32.
@@ -49,7 +51,7 @@ class FakeDeductions:
     ) -> Deductions:
         self.calls.append((jurisdiction_code, year, salary, language_code, items, with_trace))
         figures = tuple(DeductionFigure(item, Decimal(amount)) for item, amount in self.figures)
-        return Deductions(figures, TRACE if with_trace else ())
+        return Deductions(figures, TRACE if with_trace else (), unit=CAD)
 
 
 async def compute(
@@ -131,6 +133,13 @@ async def test_refuses_what_is_not_supported_before_asking_for_deductions(
         await compute(fake, **kwargs)  # type: ignore[arg-type]
     assert error.value.field == field
     assert fake.calls == []
+
+
+async def test_the_unit_and_each_trace_units_are_passed_through() -> None:
+    result = await compute(FakeDeductions(), trace=True)
+    assert result.unit == CAD
+    assert result.trace is not None
+    assert result.trace[0].lines[0].unit == CAD
 
 
 async def test_a_negative_figure_is_summed_and_take_home_can_exceed_the_salary() -> None:

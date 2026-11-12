@@ -136,7 +136,7 @@ components:
           default: false
     ComputeTakeHomeCalculationResponse:
       type: object
-      required: [salary, total_deductions, take_home, provisional]
+      required: [salary, total_deductions, take_home, unit, provisional]
       properties:
         salary: {type: string, example: "70000.00"}
         total_deductions:
@@ -147,6 +147,8 @@ components:
           type: string
           description: Salary minus total deductions.
           example: "53468.68"
+        unit:
+          $ref: "#/components/schemas/Unit"
         provisional:
           type: boolean
           description: True when the year's figures are provisional.
@@ -194,9 +196,42 @@ components:
         amount:
           type: string
           example: "1077.48"
+        unit:
+          description: The unit of amount; null if the figure has none.
+          oneOf:
+            - $ref: "#/components/schemas/Unit"
+            - {type: object, nullable: true, maxProperties: 0}
         text:
           type: string
           description: Explanation in the requested language.
+    Unit:
+      type: object
+      description: >-
+        What a figure is counted in, as data for the caller to format; amounts stay plain decimal
+        strings. The text is in the language of the trace (English).
+      required: [name, placement, singular, plural, spaced]
+      properties:
+        name:
+          type: string
+          description: Identifier of the unit; opaque, to be compared and not parsed.
+          example: ca/cad
+        placement:
+          type: string
+          enum: [before, after]
+          description: Whether the text goes before or after the number.
+          example: before
+        singular:
+          type: string
+          description: The text beside an amount of exactly 1.
+          example: CA$
+        plural:
+          type: string
+          description: The text beside any other amount.
+          example: CA$
+        spaced:
+          type: boolean
+          description: Whether one space separates the text from the number.
+          example: false
     ListJurisdictionsResponse:
       type: object
       required: [jurisdictions, next_page_token]
