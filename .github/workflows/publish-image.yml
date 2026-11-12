@@ -90,7 +90,7 @@ jobs:
           TAG: ${{ needs.publish.outputs.tag }}
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^sha-[0-9a-f]{12}$ ]] || { echo "unexpected image tag" >&2; exit 1; }
+          [[ "$TAG" =~ ^sha-[0-9a-f]{12,40}$ ]] || { echo "unexpected image tag" >&2; exit 1; }
           [[ "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || { echo "unexpected account id" >&2; exit 1; }
           image_uri="$ACCOUNT_ID.dkr.ecr.ca-central-1.amazonaws.com/tax-service-dev:$TAG"
           aws lambda update-function-code --function-name "$FUNCTION_NAME" --image-uri "$image_uri" --output text --query LastUpdateStatus

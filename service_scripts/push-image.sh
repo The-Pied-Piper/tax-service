@@ -17,8 +17,8 @@ if [[ "$env_name" != dev && "$env_name" != prod ]] || [[ ! "$account_id" =~ ^[0-
     exit 2
 fi
 # tax-infra keeps release tags (prefix v) forever and expires build tags (prefix sha-) after the newest 30.
-if [[ -n "$release_tag" && ! "$release_tag" =~ ^v[0-9A-Za-z._-]{0,127}$ ]]; then
-    echo "a release tag must start with v and use only letters, digits, dot, dash and underscore: $release_tag" >&2
+if [[ -n "$release_tag" && ! "$release_tag" =~ ^v[0-9][0-9A-Za-z._-]{0,126}$ ]]; then
+    echo "a release tag must be v and a number, then only letters, digits, dot, dash and underscore: $release_tag" >&2
     exit 2
 fi
 # The region ends up in the host name that receives the ECR password.
@@ -43,6 +43,10 @@ add_release_tag() {
     local digest existing manifest
     digest="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
         --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)"
+    if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+        echo "unexpected digest for $tag: $digest" >&2
+        return 1
+    fi
     if existing="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
         --image-ids "imageTag=$release_tag" --query 'imageDetails[0].imageDigest' --output text 2>&1)"; then
         if [[ "$existing" == "$digest" ]]; then
@@ -57,18 +61,26 @@ add_release_tag() {
     fi
     manifest="$(aws ecr batch-get-image --region "$REGION" --repository-name "$repository_name" \
         --image-ids "imageTag=$tag" --query 'images[0].imageManifest' --output text)"
+    if [[ -z "$manifest" || "$manifest" == None ]]; then
+        echo "could not read the manifest of $tag" >&2
+        return 1
+    fi
+    # The digest makes ECR refuse a manifest that is not exactly this image.
     aws ecr put-image --region "$REGION" --repository-name "$repository_name" \
-        --image-tag "$release_tag" --image-manifest "$manifest" >/dev/null
-    echo "added release tag $release_tag to $tag"
+        --image-tag "$release_tag" --image-manifest "$manifest" --image-digest "$digest" >/dev/null
+    echo "added release tag $release_tag to $tag ($digest)"
 }
 print_result() {
+    # The digest lets the operator record exactly which image the tag names.
+    echo "digest = \"$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
+        --image-ids "imageTag=$tag" --query 'imageDetails[0].imageDigest' --output text)\""
     echo "image_tag = \"${release_tag:-$tag}\""
 }
 
 # Only "not found" means absent; any other error (credentials, region, no repository) stops here.
 if found="$(aws ecr describe-images --region "$REGION" --repository-name "$repository_name" \
     --image-ids "imageTag=$tag" 2>&1)"; then
-    echo "image $tag is already in $repository_name; nothing to push"
+    echo "image $tag is already in $repository_name (pushed earlier, not by this run); nothing to push"
     add_release_tag
     print_result
     exit 0
