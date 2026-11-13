@@ -39,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$EVENT_NAME" == release ]] || { echo "not a release event" >&2; exit 1; }
-          [[ "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
+          [[ "$TAG" =~ ^v[1-9][0-9]{0,5}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
           [[ "$REF" == "refs/tags/$TAG" ]] || { echo "the run is not for the release tag" >&2; exit 1; }
           [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "unexpected image digest" >&2; exit 1; }
           if [[ -z "$ROLE_ARN" || -z "$FUNCTION_NAME" ]]; then

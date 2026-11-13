@@ -27,7 +27,7 @@ jobs:
     outputs:
       digest: ${{ steps.push.outputs.digest }}
     steps:
-      - name: Check this is a release of a version tag
+      - name: Check this is a release with a v-and-number tag
         env:
           EVENT_NAME: ${{ github.event_name }}
           TAG: ${{ github.event.release.tag_name }}
@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$EVENT_NAME" == release ]] || { echo "not a release event" >&2; exit 1; }
-          [[ "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
+          [[ "$TAG" =~ ^v[1-9][0-9]{0,5}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
           [[ "$REF" == "refs/tags/$TAG" ]] || { echo "the run is not for the release tag" >&2; exit 1; }
 
       # The released commit, with full history so it can be compared with main.
