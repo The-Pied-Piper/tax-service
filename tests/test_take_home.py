@@ -153,7 +153,7 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("overrides", "field"),
     [
-        ({"jurisdiction_code": "CA-AB"}, "jurisdiction_code"),
+        ({"jurisdiction_code": "CA-BC"}, "jurisdiction_code"),
         ({"year": 2024}, "year"),
         ({"salary": "0.00"}, "salary"),
         ({"language_code": "fr"}, "language_code"),
@@ -191,7 +191,15 @@ def test_jurisdictions_list(client: TestClient) -> None:
                     {"year": 2025, "provisional": False},
                     {"year": 2026, "provisional": True},
                 ],
-            }
+            },
+            {
+                "code": "CA-AB",
+                "name": "Alberta",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
         ],
         "next_page_token": "",
     }
@@ -228,6 +236,55 @@ def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> Non
     # Checked in this order: salary, jurisdiction_code, year, then the language.
     assert compute(client, salary="0.00", year=2024).json()["field"] == "salary"
     assert (
-        compute(client, jurisdiction_code="CA-AB", year=2024).json()["field"] == "jurisdiction_code"
+        compute(client, jurisdiction_code="CA-BC", year=2024).json()["field"] == "jurisdiction_code"
     )
     assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
+
+
+# Alberta: (year, salary, total_deductions, take_home, average rate, marginal rate)
+ALBERTA = [
+    (2025, "20000.00", "-282.16", "20282.16", "0.0079", "0.1450"),
+    (2025, "70000.00", "16217.99", "53782.01", "0.1598", "0.3050"),
+    (2025, "200000.00", "62655.68", "137344.32", "0.2857", "0.4200"),
+    (2026, "20000.00", "-373.76", "20373.76", "0.0052", "0.1400"),
+    (2026, "70000.00", "15892.80", "54107.20", "0.1545", "0.3050"),
+    (2026, "200000.00", "62146.34", "137853.66", "0.2819", "0.4200"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(("year", "salary", "total", "take_home", "average", "marginal"), ALBERTA)
+def test_alberta_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-AB", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-ab/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_ontario_70000_is_unchanged_by_alberta(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"
+
+
+def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-AB", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
