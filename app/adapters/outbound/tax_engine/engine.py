@@ -2,7 +2,7 @@
 
 It only maps each deduction item the application asks for to the engine's form and kind, and reads
 the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
-line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). The
+line 16 and income tax as T1 line 167 (federal and provincial tax less credits and benefits). The
 average and marginal income tax rates are read the same way off the jurisdiction's own return (the
 form and kinds are per-jurisdiction policy here), each with its own unit; a rate without a unit
 makes the deductions unavailable. It also reads the unit of each trace row off the worksheet, and

@@ -18,9 +18,14 @@ ONTARIO_ITEMS = find_jurisdiction("CA-ON").deduction_items  # type: ignore[union
 
 
 async def calculate(
-    calculator: TaxEngineDeductions, year: int = 2025, language: str = "en", trace: bool = False
+    calculator: TaxEngineDeductions,
+    year: int = 2025,
+    language: str = "en",
+    trace: bool = False,
+    code: str = "CA-ON",
+    salary: int = 70000,
 ) -> Any:
-    return await calculator.calculate("CA-ON", year, Decimal(70000), language, ONTARIO_ITEMS, trace)
+    return await calculator.calculate(code, year, Decimal(salary), language, ONTARIO_ITEMS, trace)
 
 
 async def test_70000_in_ontario() -> None:
@@ -260,26 +265,20 @@ ALBERTA_INCOME_TAX = [
     (2026, 200000, "56376.82"),
 ]
 ALBERTA_RATES = [
-    (2025, 20000, "0.0079", "0.1450"),
-    (2025, 70000, "0.1598", "0.3050"),
-    (2025, 200000, "0.2857", "0.4200"),
-    (2026, 20000, "0.0052", "0.1400"),
-    (2026, 70000, "0.1545", "0.3050"),
-    (2026, 200000, "0.2819", "0.4200"),
+    (2025, 20000, "0.0079", "0.145"),
+    (2025, 70000, "0.1598", "0.305"),
+    (2025, 200000, "0.2857", "0.42"),
+    (2026, 20000, "0.0052", "0.14"),
+    (2026, 70000, "0.1545", "0.305"),
+    (2026, 200000, "0.2819", "0.42"),
 ]
-
-
-async def alberta(year: int, salary: int, trace: bool = False) -> Any:
-    # The same deduction items as Ontario (per the ticket), so this does not depend on the list.
-    calc = TaxEngineDeductions()
-    return await calc.calculate("CA-AB", year, Decimal(salary), "en", ONTARIO_ITEMS, trace)
 
 
 @pytest.mark.parametrize(("year", "salary", "income_tax"), ALBERTA_INCOME_TAX)
 async def test_alberta_income_tax_with_the_real_engine(
     year: int, salary: int, income_tax: str
 ) -> None:
-    deductions = await alberta(year, salary)
+    deductions = await calculate(TaxEngineDeductions(), year, code="CA-AB", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert figures["income_tax"] == Decimal(income_tax)
     assert deductions.unit == CAD
@@ -289,7 +288,9 @@ async def test_alberta_income_tax_with_the_real_engine(
 async def test_alberta_rates_are_read_from_the_alberta_form(
     year: int, salary: int, average: str, marginal: str
 ) -> None:
-    deductions = await alberta(year, salary, trace=True)
+    deductions = await calculate(
+        TaxEngineDeductions(), year, trace=True, code="CA-AB", salary=salary
+    )
     assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
     assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
     assert "ca-ab/return" in {form.form for form in deductions.trace}
@@ -308,26 +309,3 @@ async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engin
     )
     with pytest.raises(DeductionsUnavailableError):
         await calculator.calculate("CA-BC", 2025, Decimal(70000), "en", ("ei",), False)
-
-
-class AlbertaEngine:
-    """Gives sheets only under Alberta's forms; reading Ontario's return finds nothing."""
-
-    def compute(self, *args: Any) -> Any:
-        sheet = UnitSheet({EI: "ca/cad", CPP2: "ca/cad"})
-        sheet._units.update(
-            {
-                artifact_kinds().kind(kind): "core/percent"
-                for kind in ("ca-ab/average_income_tax_rate", "ca-ab/marginal_tax_rate")
-            }
-        )
-        return {"ca/t2204": [sheet], "ca/schedule_8": [sheet], "ca-ab/return": [sheet]}
-
-
-async def test_alberta_rates_come_from_the_alberta_return_of_a_fake_engine() -> None:
-    calculator = TaxEngineDeductions(AlbertaEngine(), SimpleNamespace(render=lambda *a: "one"))
-    deductions = await calculator.calculate(
-        "CA-AB", 2025, Decimal(70000), "en", ("ei", "cpp2"), False
-    )
-    assert deductions.average_income_tax_rate == Rate(Decimal("1.00"), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal("1.00"), PERCENT)
