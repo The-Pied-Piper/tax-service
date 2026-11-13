@@ -304,7 +304,7 @@ components:
           example: 400
         detail:
           type: string
-          example: "jurisdiction_code CA-AB is not supported yet"
+          example: "jurisdiction_code CA-BC is not supported yet"
         field:
           type: string
           description: Request field at fault, when there is one.
