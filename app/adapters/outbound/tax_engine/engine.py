@@ -2,11 +2,12 @@
 
 It only maps each deduction item the application asks for to the engine's form and kind, and reads
 the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
-line 16 and income tax as T1 line 167 (federal and Ontario tax less credits and benefits). The
-average and marginal income tax rates are read the same way off the Ontario return, each with its
-own unit; a rate without a unit makes the deductions unavailable. It also reads the unit of each
-trace row off the worksheet, and the unit the figures are in: they must all have the same one (the
-rates do not take part), else the deductions are unavailable. What "total deductions" is made of is
+line 16 and income tax as T1 line 167 (federal and provincial tax less credits and benefits). The
+average and marginal income tax rates are read the same way off the jurisdiction's own return (the
+form and kinds are per-jurisdiction policy here), each with its own unit; a rate without a unit
+makes the deductions unavailable. It also reads the unit of each trace row off the worksheet, and
+the unit the figures are in: they must all have the same one (the rates do not take part), else the
+deductions are unavailable. What "total deductions" is made of is
 decided by the domain. The engine is synchronous, so it runs on
 a worker thread here; the application only sees an async port. Everything the engine raises is
 translated into the port's own errors.
@@ -44,9 +45,15 @@ FIGURES = {
     "ei": ("ca/t2204", "ca/t2204_line_16"),
     "income_tax": ("ca/t1_tax_and_credits", "ca/refund_or_balance_owing"),
 }
-# The engine's (form, kind) of the average and the marginal income tax rate.
-AVERAGE_RATE = ("ca-on/return", "ca-on/average_income_tax_rate")
-MARGINAL_RATE = ("ca-on/return", "ca-on/marginal_tax_rate")
+# Each jurisdiction's engine (form, kind) of the average and of the marginal income tax rate.
+AVERAGE_RATES = {
+    "CA-ON": ("ca-on/return", "ca-on/average_income_tax_rate"),
+    "CA-AB": ("ca-ab/return", "ca-ab/average_income_tax_rate"),
+}
+MARGINAL_RATES = {
+    "CA-ON": ("ca-on/return", "ca-on/marginal_tax_rate"),
+    "CA-AB": ("ca-ab/return", "ca-ab/marginal_tax_rate"),
+}
 
 
 class Engine(Protocol):
@@ -180,6 +187,6 @@ class TaxEngineDeductions:
             figures=figures,
             trace=tuple(trace),
             unit=_unit(unit),
-            average_income_tax_rate=rate(AVERAGE_RATE),
-            marginal_income_tax_rate=rate(MARGINAL_RATE),
+            average_income_tax_rate=rate(AVERAGE_RATES[jurisdiction_code]),
+            marginal_income_tax_rate=rate(MARGINAL_RATES[jurisdiction_code]),
         )

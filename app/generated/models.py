@@ -120,7 +120,7 @@ class Error(BaseModel):
     ]
     title: Annotated[str, Field(examples=["Unsupported jurisdiction"])]
     status: Annotated[int, Field(examples=[400], ge=100, le=599)]
-    detail: Annotated[str, Field(examples=["jurisdiction_code CA-AB is not supported yet"])]
+    detail: Annotated[str, Field(examples=["jurisdiction_code CA-BC is not supported yet"])]
     field: Annotated[
         str | None,
         Field(

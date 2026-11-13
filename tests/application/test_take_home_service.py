@@ -129,7 +129,7 @@ async def test_trace_only_when_asked() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "field"),
     [
-        ({"code": "CA-AB"}, "jurisdiction_code"),
+        ({"code": "CA-BC"}, "jurisdiction_code"),
         ({"year": 2024}, "year"),
         ({"salary": "0"}, "salary"),
         ({"salary": "1000000000000000"}, "salary"),
