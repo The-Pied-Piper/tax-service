@@ -136,7 +136,7 @@ never expires; prod must run a release tag. The adapter is pinned by digest.
 ### Releasing to prod
 
 Prod runs only a release image, and only a published GitHub release changes it.
-Publishing a release with a version tag (`v1`, `v0.1.1`) starts
+Publishing a release with a release number (`v1`, `v2`, `v3`) starts
 `.github/workflows/release.yml`, which is only a trigger. It calls two reusable
 workflows pinned to `main`: `release-push.yml` builds the tagged commit and pushes it as
 `sha-<commit>` and the release tag, and `release-deploy.yml` points the prod function at
@@ -144,7 +144,7 @@ that image by its digest and checks `https://api.aftertaxlens.com/api/v1/status/
 Each job waits for your approval in its own GitHub environment (`prod-image`, then
 `prod-deploy`), and its AWS role (tax-infra `release_github`) trusts only that
 environment, a `v*` tag and its own workflow file as it is on `main`. Before any role is
-assumed the push job checks that the event is a release, the tag looks like a version and
+assumed the push job checks that the event is a release, the tag is `v` and a number and
 the commit is already on `main`. Environment variables (not secrets): `AWS_ACCOUNT_ID_PROD`
 and `AWS_ECR_PUSH_ROLE_ARN_PROD` in `prod-image`; `AWS_ACCOUNT_ID_PROD`,
 `AWS_LAMBDA_DEPLOY_ROLE_ARN_PROD` and `LAMBDA_FUNCTION_NAME_PROD` in `prod-deploy`. Before it deploys, the deploy job checks the digest it was handed is the image tagged with

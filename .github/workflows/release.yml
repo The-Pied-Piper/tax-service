@@ -1,6 +1,6 @@
 name: Release
 
-# Publishing a GitHub release (a tag like v1 or v0.1.1) pushes that commit's image to the
+# Publishing a GitHub release (a tag like v1 or v2) pushes that commit's image to the
 # prod ECR repository and then switches the prod Lambda function to it. This file is only
 # the trigger: it comes from the tagged commit, so it holds no logic and no credentials of
 # its own. The two jobs call reusable workflows pinned to main, and the AWS roles trust

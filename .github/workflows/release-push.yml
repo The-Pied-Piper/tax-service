@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$EVENT_NAME" == release ]] || { echo "not a release event" >&2; exit 1; }
-          [[ "$TAG" =~ ^v[0-9]+(\.[0-9]+){0,2}$ ]] || { echo "unexpected release tag" >&2; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+$ ]] || { echo "unexpected release tag" >&2; exit 1; }
           [[ "$REF" == "refs/tags/$TAG" ]] || { echo "the run is not for the release tag" >&2; exit 1; }
 
       # The released commit, with full history so it can be compared with main.
