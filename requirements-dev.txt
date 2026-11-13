@@ -282,7 +282,7 @@ swagger-ui-bundle==1.1.0
     # via
     #   -c requirements.txt
     #   connexion
-tax-engine @ git+https://github.com/The-Pied-Piper/tax-engine.git@b98d6b765cfc3d63618c91ee3bf51f7f5381873f
+tax-engine==0.1.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
