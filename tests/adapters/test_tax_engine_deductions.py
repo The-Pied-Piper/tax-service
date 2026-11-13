@@ -220,7 +220,7 @@ class UnitEngine:
         return {"ca/t2204": [sheet], "ca/schedule_8": [sheet], "ca-on/return": [sheet]}
 
 
-EI = "ca/t2204_line_16"
+EI = "ca/t2204_premiums_deducted"
 CPP2 = "ca/cpp_part_3_line_22"
 
 
@@ -309,3 +309,33 @@ async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engin
     )
     with pytest.raises(DeductionsUnavailableError):
         await calculator.calculate("CA-BC", 2025, Decimal(70000), "en", ("ei",), False)
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB"])
+@pytest.mark.parametrize(
+    ("salary", "take_home"),
+    [
+        (1999, "1999.00"),
+        (2000, "2000.00"),
+        (2010, "2000.00"),
+        (2033, "1999.66"),
+        (2034, "2000.64"),
+        (70000, None),
+    ],
+)
+async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
+    code: str, salary: int, take_home: str | None
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    expected = take_home or {"CA-ON": "53468.68", "CA-AB": "53782.01"}[code]
+    assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB"])
+@pytest.mark.parametrize(("salary", "ei"), [(2000, "32.80"), (2033, "33.34")])
+async def test_ei_is_the_premium_withheld_with_the_real_engine(
+    code: str, salary: int, ei: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
+    assert {f.item: f.amount for f in deductions.figures}["ei"] == Decimal(ei)
