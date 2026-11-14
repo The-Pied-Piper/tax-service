@@ -1,8 +1,9 @@
 # tax-service
 
-Tax Service — spec-first, hexagonal architecture, Connexion 3 (ASGI). Created from
-service-template (`https://github.com/The-Pied-Piper/service-template.git`); the generator lives
-in `tools/service_gen/` and is driven by `openapi/openapi.yml`.
+Tax Service: the HTTP API behind [aftertaxlens.com](https://aftertaxlens.com). It works out take-home pay
+by calling [tax-engine](https://github.com/The-Pied-Piper/tax-engine), the open-source tax calculation
+library. Spec-first, hexagonal architecture, Connexion 3 (ASGI). It was created from a private service
+template; the generator lives in `tools/service_gen/` and is driven by `openapi/openapi.yml`.
 
 ## Run
 
@@ -177,7 +178,7 @@ This replaces those paths, records the version, and runs `sync`. Review the
 resulting diff as one PR; the release notes list any manual edits required in
 files you own.
 
-The template is fetched from the address in `TEMPLATE_REPO` (written by
-`./dev.sh init`; set the `TEMPLATE_REPO` environment variable to override it).
-Without that file, it is the template at the same host and scheme as this
-repo's `origin`.
+The template is a private repository, so only the maintainers can run this. It is fetched
+from the address in `TEMPLATE_REPO` (written by `./dev.sh init`; set the `TEMPLATE_REPO`
+environment variable to override it). Without that file, it is the template at the same
+host and scheme as this repo's `origin`.
