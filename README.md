@@ -1,9 +1,36 @@
 # tax-service
 
+[![CI](https://github.com/The-Pied-Piper/tax-service/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-Pied-Piper/tax-service/actions/workflows/ci.yml)
+
 Tax Service: the HTTP API behind [aftertaxlens.com](https://aftertaxlens.com). It works out take-home pay
 by calling [tax-engine](https://github.com/The-Pied-Piper/tax-engine), the open-source tax calculation
 library. Spec-first, hexagonal architecture, Connexion 3 (ASGI). It was created from the open-source
 [service-template](https://github.com/The-Pied-Piper/service-template); the generator lives in `tools/service_gen/` and is driven by `openapi/openapi.yml`.
+
+## Try it
+
+The API is live at `https://api.aftertaxlens.com`. This asks for the take-home pay on a $70,000 salary in Ontario for tax year 2025:
+
+```sh
+curl -s -X POST https://api.aftertaxlens.com/api/v1/take-home-calculations:compute \
+  -H 'content-type: application/json' \
+  -d '{"jurisdiction_code": "CA-ON", "year": 2025, "salary": "70000", "language_code": "en", "include_trace": false}'
+```
+
+The answer (the `unit` objects, which describe how to format each amount, are left out here):
+
+```json
+{
+  "salary": "70000.00",
+  "total_deductions": "16531.32",
+  "take_home": "53468.68",
+  "average_income_tax_rate": { "amount": "0.1642" },
+  "marginal_income_tax_rate": { "amount": "0.2965" },
+  "provisional": false
+}
+```
+
+`GET /api/v1/jurisdictions` lists the supported jurisdictions and years. The figures follow the published forms; this is an independent estimation tool. The full contract is in [`openapi/openapi.yml`](openapi/openapi.yml).
 
 ## Run
 
@@ -182,3 +209,7 @@ The template is public, and `./dev.sh upgrade` fetches it, with its release note
 `CHANGELOG.md`, from the address in `TEMPLATE_REPO` (written by `./dev.sh init`; set the `TEMPLATE_REPO`
 environment variable to override it). Without that file, it is the template at the same
 host and scheme as this repo's `origin`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bugs and ideas go on the [issue list](https://github.com/The-Pied-Piper/tax-service/issues).
