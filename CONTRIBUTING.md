@@ -35,9 +35,9 @@ To run the API locally, use `./dev.sh up` (the README says how to reset afterwar
 
 ## Template files and service files
 
-Part of this repository comes from a private service template. The README's layout marks the template-owned paths. The short version:
+Part of this repository comes from the open-source [service-template](https://github.com/The-Pied-Piper/service-template). The README's layout marks the template-owned paths. The short version:
 
-- **Template-owned** (`dev.sh`, `scripts/`, `tools/service_gen/`, `.github/workflows/ci.yml`): the maintainers replace these from the template (`./dev.sh upgrade`), so a change to them in a pull request may be overwritten. Open an issue rather than a pull request for these.
+- **Template-owned** (`dev.sh`, `scripts/`, `tools/service_gen/`, `.github/workflows/ci.yml`): the maintainers replace these from the template (`./dev.sh upgrade`), so a change to them in a pull request may be overwritten. Open an issue rather than a pull request for these, or propose the change in the template itself.
 - **Service-owned** (everything else, such as `Dockerfile`, `compose.yaml`, `pyproject.toml` and `app/`): edit these freely; `upgrade` never touches them.
 - **Generated** (`app/generated/**`): never edited by hand. Change `openapi/openapi.yml` and run `./dev.sh sync`.
 
