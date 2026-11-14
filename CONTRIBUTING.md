@@ -30,7 +30,7 @@ To run the API locally, use `./dev.sh up` (the README says how to reset afterwar
 
 ## Where a problem belongs
 
-- The tax figures themselves, a missing deduction or credit, or a rounding difference belong to [tax-engine](https://github.com/The-Pied-Piper/tax-engine), which does the calculation. This repository only turns a request into an engine call and the result into a response.
+- The tax calculation itself (rates, brackets, credits and rounding) belongs to [tax-engine](https://github.com/The-Pied-Piper/tax-engine). Which deductions are included and how take-home pay is worked out from the engine's result stay here.
 - Request and response shapes, validation, error messages and the deployed API belong here. The API is described in `openapi/openapi.yml`.
 
 ## Template files and service files

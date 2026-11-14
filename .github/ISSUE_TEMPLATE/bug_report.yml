@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in the template or generator does not work as documented
+description: Something in the API or this repository does not work as documented
 labels: [bug]
 body:
   - type: markdown
@@ -17,7 +17,7 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      description: The commands you ran (for example `./dev.sh init`) and the relevant part of your OpenAPI spec.
+      description: The request you sent (or the commands you ran) and the response you got.
       render: shell
     validations:
       required: true
@@ -25,4 +25,4 @@ body:
     id: version
     attributes:
       label: Version or commit
-      placeholder: the commit hash, or the value in TEMPLATE_VERSION
+      placeholder: the release (v1, v2, ...) or the commit hash
