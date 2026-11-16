@@ -153,7 +153,7 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("overrides", "field"),
     [
-        ({"jurisdiction_code": "CA-BC"}, "jurisdiction_code"),
+        ({"jurisdiction_code": "CA-QC"}, "jurisdiction_code"),
         ({"year": 2024}, "year"),
         ({"salary": "0.00"}, "salary"),
         ({"language_code": "fr"}, "language_code"),
@@ -200,6 +200,11 @@ def test_jurisdictions_list(client: TestClient) -> None:
                     {"year": 2026, "provisional": True},
                 ],
             },
+            {
+                "code": "CA-BC",
+                "name": "British Columbia",
+                "years": [{"year": 2025, "provisional": False}],
+            },
         ],
         "next_page_token": "",
     }
@@ -236,7 +241,7 @@ def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> Non
     # Checked in this order: salary, jurisdiction_code, year, then the language.
     assert compute(client, salary="0.00", year=2024).json()["field"] == "salary"
     assert (
-        compute(client, jurisdiction_code="CA-BC", year=2024).json()["field"] == "jurisdiction_code"
+        compute(client, jurisdiction_code="CA-QC", year=2024).json()["field"] == "jurisdiction_code"
     )
     assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
 
@@ -282,6 +287,12 @@ def test_alberta_compute_with_both_rates(
 
 def test_ontario_70000_is_unchanged_by_alberta(client: TestClient) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
+
+
+def test_british_columbia_is_not_offered_in_2026_yet(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-BC", year=2026)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
 
 
 def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:

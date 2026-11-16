@@ -142,6 +142,19 @@ async def test_what_the_engine_does_not_title_is_absent() -> None:
     assert (line.label, line.name, line.reference) == (None, None, None)
 
 
+async def test_british_columbia_rates_are_read_from_its_own_return() -> None:
+    class BritishColumbiaEngine:
+        def compute(self, *args: Any) -> Any:
+            return {"ca/t2204": [FakeSheet()], "ca-bc/return": [FakeSheet()]}
+
+    calculator = TaxEngineDeductions(
+        BritishColumbiaEngine(), SimpleNamespace(render=lambda line, sheet: "one")
+    )
+    deductions = await calculator.calculate("CA-BC", 2025, Decimal(70000), "en", ("ei",), False)
+    assert deductions.average_income_tax_rate.amount == Decimal("1.00")
+    assert deductions.marginal_income_tax_rate.amount == Decimal("1.00")
+
+
 async def test_the_real_engine_titles_its_forms() -> None:
     deductions = await calculate(TaxEngineDeductions(), trace=True)
     names = {form.form: form.name for form in deductions.trace}
@@ -296,7 +309,7 @@ async def test_alberta_rates_are_read_from_the_alberta_form(
     assert "ca-ab/return" in {form.form for form in deductions.trace}
 
 
-@pytest.mark.parametrize("code", ["CA-BC", "XX", ""])
+@pytest.mark.parametrize("code", ["CA-QC", "XX", ""])
 async def test_an_unknown_jurisdiction_is_the_ports_error(code: str) -> None:
     with pytest.raises(DeductionsUnavailableError):
         await TaxEngineDeductions().calculate(code, 2025, Decimal(70000), "en", ("ei",), False)
@@ -308,7 +321,7 @@ async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engin
         FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
     )
     with pytest.raises(DeductionsUnavailableError):
-        await calculator.calculate("CA-BC", 2025, Decimal(70000), "en", ("ei",), False)
+        await calculator.calculate("CA-QC", 2025, Decimal(70000), "en", ("ei",), False)
 
 
 @pytest.mark.parametrize("code", ["CA-ON", "CA-AB"])
