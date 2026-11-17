@@ -299,32 +299,40 @@ async def test_alberta_rates_are_read_from_the_alberta_form(
 
 # British Columbia's income_tax is the deduction item for T1 line 167 (negative for a refund).
 BRITISH_COLUMBIA_INCOME_TAX = [
-    (20000, "-1474.91"),
-    (70000, "10748.03"),
-    (275000, "94556.99"),
+    (2025, 20000, "-1474.91"),
+    (2025, 70000, "10748.03"),
+    (2025, 275000, "94556.99"),
+    (2026, 20000, "-1561.51"),
+    (2026, 70000, "10572.03"),
+    (2026, 275000, "93405.74"),
 ]
 BRITISH_COLUMBIA_RATES = [
-    (20000, "0.0079", "0.145"),
-    (70000, "0.1535", "0.282"),
-    (275000, "0.3438", "0.535"),
+    (2025, 20000, "0.0079", "0.145"),
+    (2025, 70000, "0.1535", "0.282"),
+    (2025, 275000, "0.3438", "0.535"),
+    (2026, 20000, "0.0052", "0.14"),
+    (2026, 70000, "0.1510", "0.282"),
+    (2026, 275000, "0.3397", "0.535"),
 ]
 
 
-@pytest.mark.parametrize(("salary", "income_tax"), BRITISH_COLUMBIA_INCOME_TAX)
+@pytest.mark.parametrize(("year", "salary", "income_tax"), BRITISH_COLUMBIA_INCOME_TAX)
 async def test_british_columbia_income_tax_with_the_real_engine(
-    salary: int, income_tax: str
+    year: int, salary: int, income_tax: str
 ) -> None:
-    deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
+    deductions = await calculate(TaxEngineDeductions(), year, code="CA-BC", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert figures["income_tax"] == Decimal(income_tax)
     assert deductions.unit == CAD
 
 
-@pytest.mark.parametrize(("salary", "average", "marginal"), BRITISH_COLUMBIA_RATES)
+@pytest.mark.parametrize(("year", "salary", "average", "marginal"), BRITISH_COLUMBIA_RATES)
 async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
-    salary: int, average: str, marginal: str
+    year: int, salary: int, average: str, marginal: str
 ) -> None:
-    deductions = await calculate(TaxEngineDeductions(), trace=True, code="CA-BC", salary=salary)
+    deductions = await calculate(
+        TaxEngineDeductions(), year, trace=True, code="CA-BC", salary=salary
+    )
     assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
     assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
     assert "ca-bc/return" in {form.form for form in deductions.trace}
