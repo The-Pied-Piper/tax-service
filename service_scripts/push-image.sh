@@ -5,7 +5,7 @@
 source "$(dirname "$0")/../scripts/_lib.sh"
 # (_lib.sh sets -euo pipefail: pipefail is what makes the login pipe below safe.)
 
-# Must match the tax-infra service module: repository <name>-<environment>, immutable tags.
+# The repository is <name>-<environment> and uses immutable tags.
 SERVICE_NAME=tax-service
 REGION="${AWS_REGION:-ca-central-1}"
 
@@ -16,7 +16,7 @@ if [[ "$env_name" != dev && "$env_name" != prod ]] || [[ ! "$account_id" =~ ^[0-
     echo "usage: ./dev.sh push-image <dev|prod> <12-digit aws account id> [release tag such as v1]" >&2
     exit 2
 fi
-# tax-infra keeps release tags (prefix v) forever and expires build tags (prefix sha-) after the newest 30.
+# Release tags (prefix v) are meant to be kept forever; build tags (prefix sha-) may be expired by a lifecycle rule.
 if [[ -n "$release_tag" && ! "$release_tag" =~ ^v[0-9][0-9A-Za-z._-]{0,126}$ ]]; then
     echo "a release tag must be v and a number, then only letters, digits, dot, dash and underscore: $release_tag" >&2
     exit 2
@@ -31,7 +31,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
     exit 1
 fi
 
-# The build tag names the commit (not a content hash); tax-infra expires old sha- tags.
+# The build tag names the commit (not a content hash).
 tag="sha-$(git rev-parse --short=12 HEAD)"
 registry="$account_id.dkr.ecr.$REGION.amazonaws.com"
 repository_name="$SERVICE_NAME-$env_name"
@@ -99,7 +99,7 @@ fi
 trap 'docker logout "$registry" >/dev/null 2>&1 || true' EXIT
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$registry"
 # Build from the committed files only (git archive), so an ignored local file cannot end up in the image.
-# Lambda on x86_64 (the infra module's default architecture); provenance off so ECR gets a plain single image.
+# Lambda on x86_64; provenance off so ECR gets a plain single image.
 git archive HEAD | docker buildx build --platform linux/amd64 --target prod --provenance=false --push \
     -t "$registry/$repository_name:$tag" -
 echo "pushed $registry/$repository_name:$tag"

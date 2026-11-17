@@ -133,33 +133,29 @@ no external dependency to check; add a probe per dependency.
 
 The production image (the `prod` stage of the Dockerfile) also runs on AWS
 Lambda: it carries the AWS Lambda Web Adapter, which does nothing outside Lambda.
-Images go to the private ECR repository `tax-service-<env>` that
-[tax-infra](https://github.com/The-Pied-Piper/tax-infra) creates, tagged
-`sha-<12-character commit id>` (tax-infra expires these after the newest 30; dev CI
-runs such an image because it is always the newest).
+Images go to a private ECR repository named `tax-service-<env>` in your AWS account,
+tagged `sha-<12-character commit id>`. Keep a lifecycle rule on that repository that
+expires these build tags after the newest 30 (dev CI runs such an image because it is
+always the newest).
 An image that should keep running also gets a release tag starting with `v`, which
-never expires; prod must run a release tag. The adapter is pinned by digest.
+should never expire; prod must run a release tag. The adapter is pinned by digest.
 
 - By hand, from a clean checkout with AWS credentials for the target account:
   `./dev.sh push-image dev <account-id>`. It builds from the committed files and
-  prints the image `digest` (to record) and the `image_tag` to set in tax-infra. Add a release tag as a third argument
+  prints the image `digest` and the `image_tag` to record. Add a release tag as a third argument
   (`./dev.sh push-image prod <account-id> v1`; the tag is `v` and a number) to put that tag on the same image; the
-  printed `image_tag = "v1"` is then the line for tax-infra. A release tag that already
+  printed `image_tag` is then the tag your deployment should run. A release tag that already
   exists must point at the same image, so use a new one for each release.
 - From CI: `.github/workflows/publish-image.yml` runs the same command on every
-  merge to main, through an OIDC role. It stays off until the repository variables
-  `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV` are set.
+  merge to main, through an OIDC role. It needs the repository variables
+  `AWS_ACCOUNT_ID_DEV` and `AWS_ECR_PUSH_ROLE_ARN_DEV`; without them it does nothing.
 - A second job in the same workflow then points the dev function at that image
   (`aws lambda update-function-code`), waits for the update, and checks
   `/api/v1/status/readyz`, through a second OIDC role that can do nothing else. It
-  stays off until the repository variables `AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV` and
-  `LAMBDA_FUNCTION_NAME_DEV` are set (tax-infra outputs `ci_deploy_role_arn` and
-  `function_name`). A merge to main is therefore a deploy to dev; prod deploys on a
-  release instead. If the new version is bad, the run turns red and the previous
-  version is gone from the function: roll back by hand until tax-infra #70. Until
-  then, re-running the workflow run of an older merge to main also switches dev back
-  to that merge's image (anyone who can re-run a workflow can do this; it is the
-  stop-gap rollback route, and #70 will replace it).
+  needs the repository variables `AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV` (a role that may only
+  update that one function's code, read its configuration and read images from the
+  repository) and `LAMBDA_FUNCTION_NAME_DEV`; without them it does nothing. A merge to main
+  is therefore a deploy to dev; prod deploys on a release instead.
 
 ### Releasing to prod
 
@@ -170,24 +166,24 @@ workflows pinned to `main`: `release-push.yml` builds the tagged commit and push
 `sha-<commit>` and the release tag, and `release-deploy.yml` points the prod function at
 that image by its digest and checks `https://api.aftertaxlens.com/api/v1/status/readyz`.
 Each job waits for your approval in its own GitHub environment (`prod-image`, then
-`prod-deploy`), and its AWS role (tax-infra `release_github`) trusts only that
+`prod-deploy`), and its AWS role should trust only that
 environment, a `v*` tag and its own workflow file as it is on `main`. Before any role is
 assumed the push job checks that the event is a release, the tag is `v` and a number and
 the commit is already on `main`. Environment variables (not secrets): `AWS_ACCOUNT_ID_PROD`
 and `AWS_ECR_PUSH_ROLE_ARN_PROD` in `prod-image`; `AWS_ACCOUNT_ID_PROD`,
 `AWS_LAMBDA_DEPLOY_ROLE_ARN_PROD` and `LAMBDA_FUNCTION_NAME_PROD` in `prod-deploy`. Before it deploys, the deploy job checks the digest it was handed is the image tagged with
-this release and with this commit's `sha-` tag. Pre-releases are not deployed. Until the
-function exists the deploy job ends green with a warning, without deploying. Each
+this release and with this commit's `sha-` tag. Pre-releases are not deployed. If the prod function
+variables are not set, the deploy job ends green with a warning, without deploying. Each
 environment's deployment rule must allow `v*` tags (selected tags, not protected
 branches only), and only the owner may publish releases. To go back to an earlier release,
 release it again from its commit under a new number; old runs are not re-run after a
 change to these files. Publish releases only
 from the Releases page, never by pushing a `v` tag from a terminal.
 
-The role (tax-infra) must trust only this repository's `main` branch (an exact
+The dev roles should trust only this repository's `main` branch (an exact
 `sub` of `repo:The-Pied-Piper/tax-service:ref:refs/heads/main`, audience
-`sts.amazonaws.com`), live in the dev account, and be allowed to push and
-describe images in `tax-service-dev` only. The deploy role (also tax-infra) trusts the
+`sts.amazonaws.com`) and live in the dev account. The push role should be allowed to push and
+describe images in `tax-service-dev` only. The deploy role should trust the
 same exact subject and may only update the code of the one `tax-service-dev`
 function, read its configuration, and read images from that repository.
 

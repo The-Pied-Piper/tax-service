@@ -4,7 +4,7 @@ name: Publish image
 # merge to main (main only takes pull requests with green CI), using a short-lived
 # OIDC role (no stored keys). It does nothing until the repository variables
 # AWS_ACCOUNT_ID_DEV and AWS_ECR_PUSH_ROLE_ARN_DEV are set, which happens once
-# tax-infra has created the ECR repository and the role.
+# the ECR repository and the role exist.
 #
 # A second job then points the dev Lambda function at that image, through a second
 # role that can do nothing else. It stays off until AWS_LAMBDA_DEPLOY_ROLE_ARN_DEV and
@@ -98,10 +98,9 @@ jobs:
           aws lambda wait function-updated --function-name "$FUNCTION_NAME"
           echo "dev now runs $image_uri"
 
-      # The dev API (api-dev.aftertaxlens.com, the tax-infra dev environment's name) must
+      # The dev API (api-dev.aftertaxlens.com) must
       # answer healthy after the switch. This shows the API is up, not which version
-      # answers (readyz returns no version). A failure turns the run red and leaves the
-      # person to roll back (tax-infra #70).
+      # answers (readyz returns no version). A failure turns the run red.
       - name: Check the API is ready
         run: |
           set -euo pipefail
