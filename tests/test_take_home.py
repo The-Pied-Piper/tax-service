@@ -153,7 +153,7 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("overrides", "field"),
     [
-        ({"jurisdiction_code": "CA-BC"}, "jurisdiction_code"),
+        ({"jurisdiction_code": "CA-QC"}, "jurisdiction_code"),
         ({"year": 2024}, "year"),
         ({"salary": "0.00"}, "salary"),
         ({"language_code": "fr"}, "language_code"),
@@ -200,6 +200,11 @@ def test_jurisdictions_list(client: TestClient) -> None:
                     {"year": 2026, "provisional": True},
                 ],
             },
+            {
+                "code": "CA-BC",
+                "name": "British Columbia",
+                "years": [{"year": 2025, "provisional": False}],
+            },
         ],
         "next_page_token": "",
     }
@@ -236,7 +241,7 @@ def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> Non
     # Checked in this order: salary, jurisdiction_code, year, then the language.
     assert compute(client, salary="0.00", year=2024).json()["field"] == "salary"
     assert (
-        compute(client, jurisdiction_code="CA-BC", year=2024).json()["field"] == "jurisdiction_code"
+        compute(client, jurisdiction_code="CA-QC", year=2024).json()["field"] == "jurisdiction_code"
     )
     assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
 
@@ -281,6 +286,49 @@ def test_alberta_compute_with_both_rates(
 
 
 def test_ontario_70000_is_unchanged_by_alberta(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"
+
+
+# British Columbia: (salary, total_deductions, take_home, average rate, marginal rate)
+BRITISH_COLUMBIA = [
+    ("20000.00", "-165.16", "20165.16", "0.0079", "0.145"),
+    ("70000.00", "15782.26", "54217.74", "0.1535", "0.282"),
+    ("275000.00", "100064.57", "174935.43", "0.3438", "0.535"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(("salary", "total", "take_home", "average", "marginal"), BRITISH_COLUMBIA)
+def test_british_columbia_2025_compute_with_both_rates(
+    client: TestClient,
+    salary: str,
+    total: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(client, jurisdiction_code="CA-BC", salary=salary, include_trace=trace)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["take_home"] == take_home
+    assert body["provisional"] is False
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-bc/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_british_columbia_is_not_offered_in_2026_yet(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-BC", year=2026)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
+def test_ontario_70000_is_unchanged_by_british_columbia(client: TestClient) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
 
 

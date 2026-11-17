@@ -178,6 +178,13 @@ SUPPORTED_JURISDICTIONS = (
         deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
+    SupportedJurisdiction(
+        "CA-BC",
+        "British Columbia",
+        (SupportedYear(2025, provisional=False),),
+        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
+        languages=("en",),
+    ),
 )
 
 
