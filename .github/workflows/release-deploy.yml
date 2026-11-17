@@ -3,8 +3,7 @@ name: Release deploy
 # Reusable: called by release.yml on main, after release-push.yml. Points the prod Lambda
 # function at the image that was just pushed, by its digest, through the prod-deploy role.
 # The job waits in the prod-deploy GitHub environment for Umar's approval. It never runs
-# on its own. Until the function exists (tax-infra creates it once the first release image
-# is named), the variables below are unset and this job ends green without deploying.
+# on its own. If the variables below are unset, this job ends green without deploying.
 # Actions are pinned by commit; Dependabot (github-actions) keeps the tags in the comments current.
 
 on:
@@ -84,9 +83,7 @@ jobs:
           echo "prod now runs $image_uri"
 
       # The prod API must answer healthy after the switch. This shows the API is up, not
-      # which version answers (readyz returns no version). A failure turns the run red and
-      # leaves the person to roll back (publish the previous release again as a new number;
-      # tax-infra #70 will add a rollback).
+      # which version answers (readyz returns no version). A failure turns the run red.
       - name: Check the API is ready
         if: ${{ steps.check.outputs.ready == 'true' }}
         run: |
