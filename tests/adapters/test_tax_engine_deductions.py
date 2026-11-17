@@ -8,6 +8,7 @@ import pytest
 from tax_engine.registrations import artifact_kinds
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
+from app.adapters.outbound.tax_engine.engine import AVERAGE_RATES, MARGINAL_RATES
 from app.application.ports.deductions import DeductionsUnavailableError
 from app.domain.take_home import SUPPORTED_JURISDICTIONS, Rate, Unit, find_jurisdiction
 
@@ -140,19 +141,6 @@ async def test_what_the_engine_does_not_title_is_absent() -> None:
     assert form.name is None
     (line,) = form.lines
     assert (line.label, line.name, line.reference) == (None, None, None)
-
-
-async def test_british_columbia_rates_are_read_from_its_own_return() -> None:
-    class BritishColumbiaEngine:
-        def compute(self, *args: Any) -> Any:
-            return {"ca/t2204": [FakeSheet()], "ca-bc/return": [FakeSheet()]}
-
-    calculator = TaxEngineDeductions(
-        BritishColumbiaEngine(), SimpleNamespace(render=lambda line, sheet: "one")
-    )
-    deductions = await calculator.calculate("CA-BC", 2025, Decimal(70000), "en", ("ei",), False)
-    assert deductions.average_income_tax_rate.amount == Decimal("1.00")
-    assert deductions.marginal_income_tax_rate.amount == Decimal("1.00")
 
 
 async def test_the_real_engine_titles_its_forms() -> None:
@@ -309,6 +297,45 @@ async def test_alberta_rates_are_read_from_the_alberta_form(
     assert "ca-ab/return" in {form.form for form in deductions.trace}
 
 
+# British Columbia's income_tax is the deduction item for T1 line 167 (negative for a refund).
+BRITISH_COLUMBIA_INCOME_TAX = [
+    (20000, "-1474.91"),
+    (70000, "10748.03"),
+    (275000, "94556.99"),
+]
+BRITISH_COLUMBIA_RATES = [
+    (20000, "0.0079", "0.145"),
+    (70000, "0.1535", "0.282"),
+    (275000, "0.3438", "0.535"),
+]
+
+
+@pytest.mark.parametrize(("salary", "income_tax"), BRITISH_COLUMBIA_INCOME_TAX)
+async def test_british_columbia_income_tax_with_the_real_engine(
+    salary: int, income_tax: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert figures["income_tax"] == Decimal(income_tax)
+    assert deductions.unit == CAD
+
+
+@pytest.mark.parametrize(("salary", "average", "marginal"), BRITISH_COLUMBIA_RATES)
+async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
+    salary: int, average: str, marginal: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), trace=True, code="CA-BC", salary=salary)
+    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
+    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
+    assert "ca-bc/return" in {form.form for form in deductions.trace}
+
+
+@pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
+def test_every_supported_jurisdiction_has_both_rate_forms(code: str) -> None:
+    assert code in AVERAGE_RATES
+    assert code in MARGINAL_RATES
+
+
 @pytest.mark.parametrize("code", ["CA-QC", "XX", ""])
 async def test_an_unknown_jurisdiction_is_the_ports_error(code: str) -> None:
     with pytest.raises(DeductionsUnavailableError):
@@ -345,7 +372,26 @@ async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
     assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
 
 
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB"])
+@pytest.mark.parametrize(
+    ("salary", "take_home"),
+    [
+        (1999, "2074.00"),
+        (2000, "2075.00"),
+        (2010, "2075.00"),
+        (2033, "2074.66"),
+        (2034, "2075.64"),
+    ],
+)
+async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
+    salary: int, take_home: str
+) -> None:
+    # The same as Ontario's and Alberta's plus the $75.00 BC sales tax credit (BC479), refundable.
+    deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC"])
 @pytest.mark.parametrize(("salary", "ei"), [(2000, "32.80"), (2033, "33.34")])
 async def test_ei_is_the_premium_withheld_with_the_real_engine(
     code: str, salary: int, ei: str
