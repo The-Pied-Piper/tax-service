@@ -208,6 +208,22 @@ def test_jurisdictions_list(client: TestClient) -> None:
                     {"year": 2026, "provisional": True},
                 ],
             },
+            {
+                "code": "CA-MB",
+                "name": "Manitoba",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
+            {
+                "code": "CA-SK",
+                "name": "Saskatchewan",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
         ],
         "next_page_token": "",
     }
@@ -339,6 +355,98 @@ def test_british_columbia_is_not_offered_in_a_year_it_lacks(client: TestClient) 
     assert response.json()["field"] == "year"
 
 
+# Manitoba: (year, salary, total_deductions, take_home, average rate, marginal rate)
+MANITOBA = [
+    (2025, "20000.00", "118.92", "19881.08", "0.0221", "0.253"),
+    (2025, "70000.00", "18367.46", "51632.54", "0.1905", "0.3325"),
+    (2025, "275000.00", "108255.71", "166744.29", "0.3736", "0.5125212"),
+    (2026, "20000.00", "30.54", "19969.46", "0.0194", "0.248"),
+    (2026, "70000.00", "18100.68", "51899.32", "0.1860", "0.3325"),
+    (2026, "275000.00", "107698.76", "167301.24", "0.3707", "0.5125212"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(("year", "salary", "total", "take_home", "average", "marginal"), MANITOBA)
+def test_manitoba_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-MB", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-mb/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_manitoba_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-MB", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
+# Saskatchewan: (year, salary, total_deductions, take_home, average rate, marginal rate)
+SASKATCHEWAN = [
+    (2025, "20000.00", "-165.16", "20165.16", "0.0079", "0.145"),
+    (2025, "70000.00", "17712.17", "52287.83", "0.1811", "0.33"),
+    (2025, "275000.00", "100795.15", "174204.85", "0.3465", "0.475"),
+    (2026, "20000.00", "-253.76", "20253.76", "0.0052", "0.14"),
+    (2026, "70000.00", "17330.69", "52669.31", "0.1750", "0.33"),
+    (2026, "275000.00", "100064.89", "174935.11", "0.3429", "0.475"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "take_home", "average", "marginal"), SASKATCHEWAN
+)
+def test_saskatchewan_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-SK", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-sk/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_saskatchewan_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-SK", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
 def test_ontario_70000_is_unchanged_by_british_columbia(client: TestClient) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
 
@@ -347,3 +455,7 @@ def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
     response = compute(client, jurisdiction_code="CA-AB", year=2024)
     assert response.status_code == 400
     assert response.json()["field"] == "year"
+
+
+def test_ontario_70000_is_unchanged_by_manitoba_and_saskatchewan(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"

@@ -185,6 +185,20 @@ SUPPORTED_JURISDICTIONS = (
         deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
+    SupportedJurisdiction(
+        "CA-MB",
+        "Manitoba",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
+        languages=("en",),
+    ),
+    SupportedJurisdiction(
+        "CA-SK",
+        "Saskatchewan",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
+        languages=("en",),
+    ),
 )
 
 
