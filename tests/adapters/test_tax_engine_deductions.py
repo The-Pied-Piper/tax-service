@@ -338,6 +338,88 @@ async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
     assert "ca-bc/return" in {form.form for form in deductions.trace}
 
 
+# Manitoba's income_tax is the deduction item for T1 line 167 (negative for a refund).
+MANITOBA_INCOME_TAX = [
+    (2025, 20000, "-1190.83"),
+    (2025, 70000, "13333.23"),
+    (2025, 275000, "102748.13"),
+    (2026, 20000, "-1277.21"),
+    (2026, 70000, "13020.86"),
+    (2026, 275000, "101929.24"),
+]
+MANITOBA_RATES = [
+    (2025, 20000, "0.0221", "0.253"),
+    (2025, 70000, "0.1905", "0.3325"),
+    (2025, 275000, "0.3736", "0.5125212"),
+    (2026, 20000, "0.0194", "0.248"),
+    (2026, 70000, "0.1860", "0.3325"),
+    (2026, 275000, "0.3707", "0.5125212"),
+]
+
+
+@pytest.mark.parametrize(("year", "salary", "income_tax"), MANITOBA_INCOME_TAX)
+async def test_manitoba_income_tax_with_the_real_engine(
+    year: int, salary: int, income_tax: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year, code="CA-MB", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert figures["income_tax"] == Decimal(income_tax)
+    assert deductions.unit == CAD
+
+
+@pytest.mark.parametrize(("year", "salary", "average", "marginal"), MANITOBA_RATES)
+async def test_manitoba_rates_are_read_from_the_manitoba_form(
+    year: int, salary: int, average: str, marginal: str
+) -> None:
+    deductions = await calculate(
+        TaxEngineDeductions(), year, trace=True, code="CA-MB", salary=salary
+    )
+    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
+    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
+    assert "ca-mb/return" in {form.form for form in deductions.trace}
+
+
+# Saskatchewan's income_tax is the deduction item for T1 line 167 (negative for a refund).
+SASKATCHEWAN_INCOME_TAX = [
+    (2025, 20000, "-1474.91"),
+    (2025, 70000, "12677.94"),
+    (2025, 275000, "95287.57"),
+    (2026, 20000, "-1561.51"),
+    (2026, 70000, "12250.87"),
+    (2026, 275000, "94295.37"),
+]
+SASKATCHEWAN_RATES = [
+    (2025, 20000, "0.0079", "0.145"),
+    (2025, 70000, "0.1811", "0.33"),
+    (2025, 275000, "0.3465", "0.475"),
+    (2026, 20000, "0.0052", "0.14"),
+    (2026, 70000, "0.1750", "0.33"),
+    (2026, 275000, "0.3429", "0.475"),
+]
+
+
+@pytest.mark.parametrize(("year", "salary", "income_tax"), SASKATCHEWAN_INCOME_TAX)
+async def test_saskatchewan_income_tax_with_the_real_engine(
+    year: int, salary: int, income_tax: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year, code="CA-SK", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert figures["income_tax"] == Decimal(income_tax)
+    assert deductions.unit == CAD
+
+
+@pytest.mark.parametrize(("year", "salary", "average", "marginal"), SASKATCHEWAN_RATES)
+async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
+    year: int, salary: int, average: str, marginal: str
+) -> None:
+    deductions = await calculate(
+        TaxEngineDeductions(), year, trace=True, code="CA-SK", salary=salary
+    )
+    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
+    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
+    assert "ca-sk/return" in {form.form for form in deductions.trace}
+
+
 @pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
 def test_every_supported_jurisdiction_has_both_rate_forms(code: str) -> None:
     assert code in AVERAGE_RATES
@@ -359,7 +441,7 @@ async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engin
         await calculator.calculate("CA-QC", 2025, Decimal(70000), "en", ("ei",), False)
 
 
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB"])
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-SK"])
 @pytest.mark.parametrize(
     ("salary", "take_home"),
     [
@@ -376,7 +458,7 @@ async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
 ) -> None:
     deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
-    expected = take_home or {"CA-ON": "53468.68", "CA-AB": "53782.01"}[code]
+    expected = take_home or {"CA-ON": "53468.68", "CA-AB": "53782.01", "CA-SK": "52287.83"}[code]
     assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
 
 
@@ -399,7 +481,27 @@ async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
 
 
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC"])
+@pytest.mark.parametrize(
+    ("salary", "take_home"),
+    [
+        (1999, "2174.01"),
+        (2000, "2175.00"),
+        (2010, "2174.90"),
+        (2033, "2174.33"),
+        (2034, "2175.30"),
+    ],
+)
+async def test_manitoba_take_home_near_the_t2204_refund_threshold(
+    salary: int, take_home: str
+) -> None:
+    # The same as Ontario's and Alberta's plus the Manitoba personal tax credit (MB479),
+    # refundable: $195.00 less 1% of net income.
+    deductions = await calculate(TaxEngineDeductions(), code="CA-MB", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK"])
 @pytest.mark.parametrize(("salary", "ei"), [(2000, "32.80"), (2033, "33.34")])
 async def test_ei_is_the_premium_withheld_with_the_real_engine(
     code: str, salary: int, ei: str
