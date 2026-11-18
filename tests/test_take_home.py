@@ -355,6 +355,10 @@ def test_british_columbia_is_not_offered_in_a_year_it_lacks(client: TestClient) 
     assert response.json()["field"] == "year"
 
 
+def test_ontario_70000_is_unchanged_by_british_columbia(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"
+
+
 # Manitoba: (year, salary, total_deductions, take_home, average rate, marginal rate)
 MANITOBA = [
     (2025, "20000.00", "118.92", "19881.08", "0.0221", "0.253"),
@@ -445,10 +449,6 @@ def test_saskatchewan_is_not_offered_in_a_year_it_lacks(client: TestClient) -> N
     response = compute(client, jurisdiction_code="CA-SK", year=2024)
     assert response.status_code == 400
     assert response.json()["field"] == "year"
-
-
-def test_ontario_70000_is_unchanged_by_british_columbia(client: TestClient) -> None:
-    assert compute(client).json()["take_home"] == "53468.68"
 
 
 def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:

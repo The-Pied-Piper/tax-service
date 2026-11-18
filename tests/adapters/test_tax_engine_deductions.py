@@ -338,48 +338,6 @@ async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
     assert "ca-bc/return" in {form.form for form in deductions.trace}
 
 
-@pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
-def test_every_supported_jurisdiction_has_both_rate_forms(code: str) -> None:
-    assert code in AVERAGE_RATES
-    assert code in MARGINAL_RATES
-
-
-@pytest.mark.parametrize("code", ["CA-QC", "XX", ""])
-async def test_an_unknown_jurisdiction_is_the_ports_error(code: str) -> None:
-    with pytest.raises(DeductionsUnavailableError):
-        await TaxEngineDeductions().calculate(code, 2025, Decimal(70000), "en", ("ei",), False)
-
-
-async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engine() -> None:
-    # Whatever the engine has, a code with no rate policy here is not served.
-    calculator = TaxEngineDeductions(
-        FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
-    )
-    with pytest.raises(DeductionsUnavailableError):
-        await calculator.calculate("CA-QC", 2025, Decimal(70000), "en", ("ei",), False)
-
-
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB"])
-@pytest.mark.parametrize(
-    ("salary", "take_home"),
-    [
-        (1999, "1999.00"),
-        (2000, "2000.00"),
-        (2010, "2000.00"),
-        (2033, "1999.66"),
-        (2034, "2000.64"),
-        (70000, None),
-    ],
-)
-async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
-    code: str, salary: int, take_home: str | None
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    expected = take_home or {"CA-ON": "53468.68", "CA-AB": "53782.01"}[code]
-    assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
-
-
 # Manitoba's income_tax is the deduction item for T1 line 167 (negative for a refund).
 MANITOBA_INCOME_TAX = [
     (2025, 20000, "-1190.83"),
@@ -462,6 +420,48 @@ async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
     assert "ca-sk/return" in {form.form for form in deductions.trace}
 
 
+@pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
+def test_every_supported_jurisdiction_has_both_rate_forms(code: str) -> None:
+    assert code in AVERAGE_RATES
+    assert code in MARGINAL_RATES
+
+
+@pytest.mark.parametrize("code", ["CA-QC", "XX", ""])
+async def test_an_unknown_jurisdiction_is_the_ports_error(code: str) -> None:
+    with pytest.raises(DeductionsUnavailableError):
+        await TaxEngineDeductions().calculate(code, 2025, Decimal(70000), "en", ("ei",), False)
+
+
+async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engine() -> None:
+    # Whatever the engine has, a code with no rate policy here is not served.
+    calculator = TaxEngineDeductions(
+        FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
+    )
+    with pytest.raises(DeductionsUnavailableError):
+        await calculator.calculate("CA-QC", 2025, Decimal(70000), "en", ("ei",), False)
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-SK"])
+@pytest.mark.parametrize(
+    ("salary", "take_home"),
+    [
+        (1999, "1999.00"),
+        (2000, "2000.00"),
+        (2010, "2000.00"),
+        (2033, "1999.66"),
+        (2034, "2000.64"),
+        (70000, None),
+    ],
+)
+async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
+    code: str, salary: int, take_home: str | None
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    expected = take_home or {"CA-ON": "53468.68", "CA-AB": "53782.01", "CA-SK": "52287.83"}[code]
+    assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
+
+
 @pytest.mark.parametrize(
     ("salary", "take_home"),
     [
@@ -477,6 +477,26 @@ async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
 ) -> None:
     # The same as Ontario's and Alberta's plus the $75.00 BC sales tax credit (BC479), refundable.
     deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
+
+
+@pytest.mark.parametrize(
+    ("salary", "take_home"),
+    [
+        (1999, "2174.01"),
+        (2000, "2175.00"),
+        (2010, "2174.90"),
+        (2033, "2174.33"),
+        (2034, "2175.30"),
+    ],
+)
+async def test_manitoba_take_home_near_the_t2204_refund_threshold(
+    salary: int, take_home: str
+) -> None:
+    # The same as Ontario's and Alberta's plus the $175.00 Manitoba personal tax credit (MB479),
+    # refundable.
+    deductions = await calculate(TaxEngineDeductions(), code="CA-MB", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
 
