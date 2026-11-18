@@ -494,8 +494,8 @@ async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
 async def test_manitoba_take_home_near_the_t2204_refund_threshold(
     salary: int, take_home: str
 ) -> None:
-    # The same as Ontario's and Alberta's plus the $175.00 Manitoba personal tax credit (MB479),
-    # refundable.
+    # The same as Ontario's and Alberta's plus the Manitoba personal tax credit (MB479),
+    # refundable: $195.00 less 1% of net income.
     deductions = await calculate(TaxEngineDeductions(), code="CA-MB", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
