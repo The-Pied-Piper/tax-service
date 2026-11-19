@@ -499,12 +499,13 @@ async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
 ) -> None:
     deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
-    expected = (
-        take_home
-        or {"CA-ON": "53468.68", "CA-AB": "53782.01", "CA-SK": "52287.83", "CA-NL": "51232.64"}[
-            code
-        ]
-    )
+    at_70000 = {
+        "CA-ON": "53468.68",
+        "CA-AB": "53782.01",
+        "CA-SK": "52287.83",
+        "CA-NL": "51232.64",
+    }
+    expected = take_home or at_70000[code]
     assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
 
 
