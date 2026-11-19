@@ -139,6 +139,9 @@ expires these build tags after the newest 30 (dev CI runs such an image because 
 always the newest).
 An image that should keep running also gets a release tag starting with `v`, which
 should never expire; prod must run a release tag. The adapter is pinned by digest.
+The adapter comes from public.ecr.aws, which limits pulls that are not signed in, so
+`push-image` signs in there first (it needs `ecr-public:GetAuthorizationToken` and
+`sts:GetServiceBearerToken` on the credentials) and carries on anonymously, with a warning, if that fails.
 
 - By hand, from a clean checkout with AWS credentials for the target account:
   `./dev.sh push-image dev <account-id>`. It builds from the committed files and
