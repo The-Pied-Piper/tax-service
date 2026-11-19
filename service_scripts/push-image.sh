@@ -96,8 +96,20 @@ fi
 # The password goes straight from the AWS CLI to docker: never printed, never on a command line.
 # Log out afterwards so the 12-hour token does not stay in the Docker credential store
 # (this also drops any earlier login to the same registry).
-trap 'docker logout "$registry" >/dev/null 2>&1 || true' EXIT
+trap 'docker logout "$registry" >/dev/null 2>&1 || true; docker logout public.ecr.aws >/dev/null 2>&1 || true' EXIT
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$registry"
+# The Dockerfile copies one pinned file out of an image on public.ecr.aws. Pulling from there without
+# signing in is limited per source address, and a shared CI runner can hit that limit ("429 Too Many
+# Requests"). Signing in lifts it. ECR Public tokens come only from us-east-1, whatever the region above.
+# If the sign-in fails (for example the role lacks ecr-public:GetAuthorizationToken or
+# sts:GetServiceBearerToken) the build still runs as before, anonymously, and says so.
+if public_password="$(aws ecr-public get-login-password --region us-east-1 2>/dev/null)" \
+    && docker login --username AWS --password-stdin public.ecr.aws <<<"$public_password" >/dev/null; then
+    echo "signed in to public.ecr.aws"
+else
+    echo "warning: could not sign in to public.ecr.aws; pulling anonymously, which may be rate limited" >&2
+fi
+unset public_password
 # Build from the committed files only (git archive), so an ignored local file cannot end up in the image.
 # Lambda on x86_64; provenance off so ECR gets a plain single image.
 git archive HEAD | docker buildx build --platform linux/amd64 --target prod --provenance=false --push \
