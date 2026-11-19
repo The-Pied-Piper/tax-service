@@ -420,6 +420,47 @@ async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
     assert "ca-sk/return" in {form.form for form in deductions.trace}
 
 
+# Newfoundland and Labrador's income_tax is T1 line 167 (negative for a refund).
+NEWFOUNDLAND_INCOME_TAX = [
+    (2025, 20000, "-1474.91"),
+    (2025, 70000, "13733.13"),
+    (2025, 275000, "103807.30"),
+    (2026, 20000, "-1561.51"),
+    (2026, 70000, "13217.18"),
+    (2026, 275000, "102691.47"),
+]
+NEWFOUNDLAND_RATES = [
+    (2025, 20000, "0.0079", "0.232"),
+    (2025, 70000, "0.1962", "0.35"),
+    (2025, 275000, "0.3775", "0.528"),
+    (2026, 20000, "0.0052", "0.227"),
+    (2026, 70000, "0.1888", "0.35"),
+    (2026, 275000, "0.3734", "0.528"),
+]
+
+
+@pytest.mark.parametrize(("year", "salary", "income_tax"), NEWFOUNDLAND_INCOME_TAX)
+async def test_newfoundland_income_tax_with_the_real_engine(
+    year: int, salary: int, income_tax: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year, code="CA-NL", salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert figures["income_tax"] == Decimal(income_tax)
+    assert deductions.unit == CAD
+
+
+@pytest.mark.parametrize(("year", "salary", "average", "marginal"), NEWFOUNDLAND_RATES)
+async def test_newfoundland_rates_are_read_from_the_newfoundland_form(
+    year: int, salary: int, average: str, marginal: str
+) -> None:
+    deductions = await calculate(
+        TaxEngineDeductions(), year, trace=True, code="CA-NL", salary=salary
+    )
+    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
+    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
+    assert "ca-nl/return" in {form.form for form in deductions.trace}
+
+
 @pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
 def test_every_supported_jurisdiction_has_both_rate_forms(code: str) -> None:
     assert code in AVERAGE_RATES
@@ -441,7 +482,7 @@ async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engin
         await calculator.calculate("CA-QC", 2025, Decimal(70000), "en", ("ei",), False)
 
 
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-SK"])
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-SK", "CA-NL"])
 @pytest.mark.parametrize(
     ("salary", "take_home"),
     [
@@ -458,7 +499,12 @@ async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
 ) -> None:
     deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
-    expected = take_home or {"CA-ON": "53468.68", "CA-AB": "53782.01", "CA-SK": "52287.83"}[code]
+    expected = (
+        take_home
+        or {"CA-ON": "53468.68", "CA-AB": "53782.01", "CA-SK": "52287.83", "CA-NL": "51232.64"}[
+            code
+        ]
+    )
     assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
 
 
@@ -501,7 +547,7 @@ async def test_manitoba_take_home_near_the_t2204_refund_threshold(
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
 
 
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK"])
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"])
 @pytest.mark.parametrize(("salary", "ei"), [(2000, "32.80"), (2033, "33.34")])
 async def test_ei_is_the_premium_withheld_with_the_real_engine(
     code: str, salary: int, ei: str

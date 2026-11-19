@@ -51,6 +51,7 @@ AVERAGE_RATES = {
     "CA-BC": ("ca-bc/return", "ca-bc/average_income_tax_rate"),
     "CA-MB": ("ca-mb/return", "ca-mb/average_income_tax_rate"),
     "CA-SK": ("ca-sk/return", "ca-sk/average_income_tax_rate"),
+    "CA-NL": ("ca-nl/return", "ca-nl/average_income_tax_rate"),
 }
 MARGINAL_RATES = {
     "CA-ON": ("ca-on/return", "ca-on/marginal_tax_rate"),
@@ -58,6 +59,7 @@ MARGINAL_RATES = {
     "CA-BC": ("ca-bc/return", "ca-bc/marginal_tax_rate"),
     "CA-MB": ("ca-mb/return", "ca-mb/marginal_tax_rate"),
     "CA-SK": ("ca-sk/return", "ca-sk/marginal_tax_rate"),
+    "CA-NL": ("ca-nl/return", "ca-nl/marginal_tax_rate"),
 }
 
 
