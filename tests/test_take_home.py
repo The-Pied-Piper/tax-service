@@ -224,6 +224,14 @@ def test_jurisdictions_list(client: TestClient) -> None:
                     {"year": 2026, "provisional": True},
                 ],
             },
+            {
+                "code": "CA-NL",
+                "name": "Newfoundland and Labrador",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
         ],
         "next_page_token": "",
     }
@@ -451,7 +459,56 @@ def test_saskatchewan_is_not_offered_in_a_year_it_lacks(client: TestClient) -> N
     assert response.json()["field"] == "year"
 
 
-def test_ontario_70000_is_unchanged_by_manitoba_and_saskatchewan(client: TestClient) -> None:
+# Newfoundland and Labrador: (year, salary, total_deductions, take_home, average, marginal)
+NEWFOUNDLAND = [
+    (2025, "20000.00", "-165.16", "20165.16", "0.0079", "0.232"),
+    (2025, "70000.00", "18767.36", "51232.64", "0.1962", "0.35"),
+    (2025, "275000.00", "109314.88", "165685.12", "0.3775", "0.528"),
+    (2026, "20000.00", "-253.76", "20253.76", "0.0052", "0.227"),
+    (2026, "70000.00", "18297.00", "51703.00", "0.1888", "0.35"),
+    (2026, "275000.00", "108460.99", "166539.01", "0.3734", "0.528"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "take_home", "average", "marginal"), NEWFOUNDLAND
+)
+def test_newfoundland_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-NL", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-nl/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_newfoundland_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-NL", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
+def test_ontario_70000_is_unchanged_by_manitoba_saskatchewan_and_newfoundland(
+    client: TestClient,
+) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
 
 
