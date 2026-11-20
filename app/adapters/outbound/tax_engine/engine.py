@@ -183,7 +183,14 @@ class TaxEngineDeductions:
                         )
                         for line in sheet.trace
                     )
-                    trace.append(FormTrace(form=form, name=_present(sheet.form_title), lines=lines))
+                    trace.append(
+                        FormTrace(
+                            form=form,
+                            name=_present(sheet.form_title),
+                            reference=_present(sheet.form_reference),
+                            lines=lines,
+                        )
+                    )
         figures = tuple(DeductionFigure(item, figure(item)) for item in items)
         unit = units[0] if units else None
         if unit is None or any(other != unit for other in units):

@@ -68,6 +68,7 @@ class Tracing:
             FormTrace(
                 "ex/form",
                 None,
+                None,
                 (TraceEntry("ex_line", None, None, Decimal(1), "one", unit=None),),
             ),
         )
@@ -92,7 +93,7 @@ async def test_a_form_without_a_name_goes_out_under_its_identifier() -> None:
     )
     assert response.trace is not None
     (form,) = response.trace
-    assert (form.form, form.name) == ("ex/form", "ex/form")
+    assert (form.form, form.name, form.reference) == ("ex/form", "ex/form", None)
     (line,) = form.lines
     assert (line.name, line.reference) == (None, None)
     assert line.unit is None

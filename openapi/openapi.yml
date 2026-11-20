@@ -186,6 +186,14 @@ components:
           type: string
           description: Display name of the form, in English; the identifier when the calculator gives none.
           example: Schedule 8
+        reference:
+          type: string
+          nullable: true
+          description: >-
+            What the form is known by, shared by every part of one form that the calculator splits
+            in several (the form's name when it does not set one); null if the calculator gives
+            none. Opaque, to be compared and not parsed, like the form identifier.
+          example: T1 return
         lines:
           type: array
           items:

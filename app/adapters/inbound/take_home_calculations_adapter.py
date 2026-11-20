@@ -57,6 +57,7 @@ def _form_trace(trace: DomainFormTrace) -> FormTrace:
     return FormTrace(
         form=trace.form,
         name=trace.name or trace.form,
+        reference=trace.reference,
         lines=[
             TraceLine(
                 label=line.label,

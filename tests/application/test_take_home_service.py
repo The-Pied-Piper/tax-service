@@ -26,6 +26,7 @@ TRACE = (
     FormTrace(
         "ex/form",
         "Example form",
+        "Example",
         (TraceEntry("ex_line", "Example line", "1", Decimal("1.00"), "one", unit=CAD),),
     ),
 )

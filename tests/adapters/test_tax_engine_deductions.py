@@ -112,6 +112,7 @@ class FakeSheet:
     """A worksheet the engine gives no titles or references for, with one line that has no label."""
 
     form_title = ""
+    form_reference = ""
     trace = (SimpleNamespace(label=None, amount=Decimal("1.00")),)
 
     def get(self, kind: Any) -> Any:
@@ -138,7 +139,7 @@ async def test_what_the_engine_does_not_title_is_absent() -> None:
     )
     deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", ("ei",), True)
     (form,) = (f for f in deductions.trace if f.form == "ca/t2204")
-    assert form.name is None
+    assert (form.name, form.reference) == (None, None)
     (line,) = form.lines
     assert (line.label, line.name, line.reference) == (None, None, None)
 
@@ -198,6 +199,7 @@ class UnitSheet:
     """A worksheet whose figures each have the unit given for their kind (None for no unit)."""
 
     form_title = ""
+    form_reference = ""
     trace = ()
 
     def __init__(self, units: dict[str, str | None]) -> None:

@@ -518,3 +518,20 @@ def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
     response = compute(client, jurisdiction_code="CA-AB", year=2024)
     assert response.status_code == 400
     assert response.json()["field"] == "year"
+
+
+def test_the_parts_of_a_split_form_share_one_reference(client: TestClient) -> None:
+    trace = compute(client, include_trace=True).json()["trace"]
+    references = {entry["form"]: entry["reference"] for entry in trace}
+    assert references["ca/t1_taxable_income"] == "T1 return"
+    assert references["ca/t1_tax_and_credits"] == "T1 return"
+    manitoba = compute(client, jurisdiction_code="CA-MB", include_trace=True).json()["trace"]
+    both = {"ca-mb/mb428", "ca-mb/mb428_credits"}
+    parts = {entry["reference"] for entry in manitoba if entry["form"] in both}
+    assert parts == {"Form MB428: Manitoba Tax"}
+
+
+def test_a_single_form_is_known_by_its_name(client: TestClient) -> None:
+    trace = compute(client, include_trace=True).json()["trace"]
+    (entry,) = (entry for entry in trace if entry["form"] == "ca-on/on428")
+    assert entry["reference"] == entry["name"] == "Form ON428: Ontario Tax"

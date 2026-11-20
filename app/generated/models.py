@@ -204,6 +204,13 @@ class FormTrace(BaseModel):
             examples=["Schedule 8"],
         ),
     ]
+    reference: Annotated[
+        str | None,
+        Field(
+            description="What the form is known by, shared by every part of one form that the calculator splits in several (the form's name when it does not set one); null if the calculator gives none. Opaque, to be compared and not parsed, like the form identifier.",
+            examples=["T1 return"],
+        ),
+    ] = None
     lines: list[TraceLine]
 
 
