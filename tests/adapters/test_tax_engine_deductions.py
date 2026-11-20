@@ -149,6 +149,13 @@ async def test_the_real_engine_titles_its_forms() -> None:
     assert (names["ca/schedule_8"] or "").startswith("Schedule 8")
 
 
+async def test_both_t1_parts_carry_the_one_t1_title() -> None:
+    deductions = await calculate(TaxEngineDeductions(), trace=True)
+    names = {form.form: form.name for form in deductions.trace}
+    assert names["ca/t1_taxable_income"] == "T1 Income Tax and Benefit Return"
+    assert names["ca/t1_tax_and_credits"] == "T1 Income Tax and Benefit Return"
+
+
 async def test_sentences_name_figures_the_way_the_form_prints_them() -> None:
     deductions = await calculate(TaxEngineDeductions(), trace=True)
     (sheet,) = (form for form in deductions.trace if form.form == "ca/schedule_6")
