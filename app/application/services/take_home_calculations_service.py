@@ -51,6 +51,8 @@ class TakeHomeCalculationsService:
             deductions.unit,
             deductions.average_income_tax_rate,
             deductions.marginal_income_tax_rate,
+            deductions.return_benefits,
+            deductions.other_benefits,
             deductions.trace if include_trace else None,
         )
 

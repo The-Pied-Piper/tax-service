@@ -136,7 +136,7 @@ components:
           default: false
     ComputeTakeHomeCalculationResponse:
       type: object
-      required: [salary, total_deductions, take_home, unit, average_income_tax_rate, marginal_income_tax_rate, provisional]
+      required: [salary, total_deductions, take_home, unit, average_income_tax_rate, marginal_income_tax_rate, return_benefits, other_benefits, provisional]
       properties:
         salary: {type: string, example: "70000.00"}
         total_deductions:
@@ -153,6 +153,21 @@ components:
           $ref: "#/components/schemas/Rate"
         marginal_income_tax_rate:
           $ref: "#/components/schemas/Rate"
+        return_benefits:
+          type: array
+          description: >-
+            Amounts that are not in the paycheck but are on the return, and arrive as a refund
+            when it is filed. Never part of total_deductions. Every part is listed, at "0.00" when
+            there is none, so the list always has the same entries for a jurisdiction.
+          items:
+            $ref: "#/components/schemas/Benefit"
+        other_benefits:
+          type: array
+          description: >-
+            Amounts paid outside the return. Every part is listed, at "0.00" when there is none;
+            empty for a jurisdiction that has none. Never part of total_deductions.
+          items:
+            $ref: "#/components/schemas/Benefit"
         provisional:
           type: boolean
           description: True when the year's figures are provisional.
@@ -172,6 +187,29 @@ components:
         amount:
           type: string
           example: "0.2965"
+        unit:
+          $ref: "#/components/schemas/Unit"
+    Benefit:
+      type: object
+      required: [label, amount, unit]
+      properties:
+        label:
+          type: string
+          description: Identifier of the benefit; opaque, to be compared and not parsed.
+          example: ca/cwb_line_45300
+        name:
+          type: string
+          nullable: true
+          description: Display name of the benefit, in English; null if none is known.
+          example: Canada workers benefit (CWB)
+        reference:
+          type: string
+          nullable: true
+          description: The form line the benefit is on; null if the form prints none.
+          example: "45300"
+        amount:
+          type: string
+          example: "1633.00"
         unit:
           $ref: "#/components/schemas/Unit"
     FormTrace:

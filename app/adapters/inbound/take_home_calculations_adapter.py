@@ -10,10 +10,12 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.application.ports.take_home_calculations_port import TakeHomeCalculationsPort
+from app.domain.take_home import Benefit as DomainBenefit
 from app.domain.take_home import FormTrace as DomainFormTrace
 from app.domain.take_home import Rate as DomainRate
 from app.domain.take_home import Unit as DomainUnit
 from app.generated.models import (
+    Benefit,
     ComputeTakeHomeCalculationRequest,
     ComputeTakeHomeCalculationResponse,
     FormTrace,
@@ -47,6 +49,8 @@ class TakeHomeCalculationsRequestAdapter:
             unit=_unit(result.unit),
             average_income_tax_rate=_rate(result.average_income_tax_rate),
             marginal_income_tax_rate=_rate(result.marginal_income_tax_rate),
+            return_benefits=[_benefit(b) for b in result.return_benefits],
+            other_benefits=[_benefit(b) for b in result.other_benefits],
         )
         if result.trace is not None:
             response.trace = [_form_trace(t) for t in result.trace]
@@ -68,6 +72,16 @@ def _form_trace(trace: DomainFormTrace) -> FormTrace:
             )
             for line in trace.lines
         ],
+    )
+
+
+def _benefit(benefit: DomainBenefit) -> Benefit:
+    return Benefit(
+        label=benefit.label,
+        name=benefit.name,
+        reference=benefit.reference,
+        amount=str(benefit.amount),
+        unit=_unit(benefit.unit),
     )
 
 

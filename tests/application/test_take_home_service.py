@@ -8,6 +8,7 @@ from app.application.ports.deductions import DeductionsUnavailableError
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
+    Benefit,
     DeductionFigure,
     Deductions,
     FormTrace,
@@ -29,6 +30,11 @@ TRACE = (
         (TraceEntry("ex_line", "Example line", "1", Decimal("1.00"), "one", unit=CAD),),
     ),
 )
+RETURN_BENEFITS = (
+    Benefit("ex_cwb", "Example workers benefit", "45300", Decimal("1633.00"), CAD),
+    Benefit("ex_credit", None, None, Decimal("0.00"), CAD),
+)
+OTHER_BENEFITS = (Benefit("ex_other", "Example other benefit", None, Decimal("363.00"), CAD),)
 # What a $70,000 salary pays of each item in CA-ON 2025; they add up to 16531.32.
 FIGURES = {
     "cpp_base": "3291.75",
@@ -61,6 +67,8 @@ class FakeDeductions:
             unit=CAD,
             average_income_tax_rate=AVERAGE,
             marginal_income_tax_rate=MARGINAL,
+            return_benefits=RETURN_BENEFITS,
+            other_benefits=OTHER_BENEFITS,
         )
 
 
@@ -83,6 +91,14 @@ async def test_take_home_is_salary_minus_the_sum_of_the_items() -> None:
         Decimal("16531.32"),
         Decimal("53468.68"),
     )
+
+
+async def test_the_benefits_are_listed_as_given_and_are_not_deducted() -> None:
+    result = await compute(FakeDeductions())
+    assert result.return_benefits == RETURN_BENEFITS  # the $0.00 part is listed too
+    assert result.other_benefits == OTHER_BENEFITS
+    assert result.total_deductions == Decimal("16531.32")
+    assert result.take_home == Decimal("53468.68")
 
 
 async def test_it_asks_for_the_items_the_jurisdiction_declares() -> None:

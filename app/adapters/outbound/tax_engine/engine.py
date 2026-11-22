@@ -3,7 +3,9 @@
 It only maps each deduction item the application asks for to the engine's form and kind, and reads
 the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
 "premiums deducted" and income tax as T1 line 167 (federal and provincial tax less credits and
-benefits). The average and marginal income tax rates are read the same way off the jurisdiction's
+benefits). Each jurisdiction's return benefits (the parts of T1 line 48200) and other benefits
+(paid outside the return) are listed with their title, form line and amount, every part even at
+0. The average and marginal income tax rates are read the same way off the jurisdiction's
 own return (the form and kinds are per-jurisdiction policy here), each with its own unit; a rate
 without a unit makes the deductions unavailable. It also reads the unit of each trace row off the
 worksheet, and the unit the figures are in: they must all have the same one (the rates do not take
@@ -32,7 +34,15 @@ from tax_engine.jurisdictions.ca.catalog.income import EMPLOYMENT_INCOME
 from tax_engine.registrations import artifact_kinds
 
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.take_home import DeductionFigure, Deductions, FormTrace, Rate, TraceEntry, Unit
+from app.domain.take_home import (
+    Benefit,
+    DeductionFigure,
+    Deductions,
+    FormTrace,
+    Rate,
+    TraceEntry,
+    Unit,
+)
 
 ENGLISH = "en"
 
@@ -61,6 +71,20 @@ MARGINAL_RATES = {
     "CA-SK": ("ca-sk/return", "ca-sk/marginal_tax_rate"),
     "CA-NL": ("ca-nl/return", "ca-nl/marginal_tax_rate"),
 }
+# Each jurisdiction's engine (form, kind) of every part of its return benefits, the amounts that
+# arrive only when the return is filed: the parts of T1 line 48200 other than the tax already
+# withheld (line 43700: the service models no T4), listed even when 0.
+RETURN_BENEFITS = {
+    code: (
+        ("ca/t1_tax_and_credits", "ca/ei_overpayment_line_45000"),
+        ("ca/t1_tax_and_credits", "ca/cwb_line_45300"),
+        ("ca/t1_tax_and_credits", "ca/provincial_credits_line_47900"),
+    )
+    for code in AVERAGE_RATES
+}
+# Each jurisdiction's engine (form, kind) of every part of its other benefits, paid outside the
+# return.
+OTHER_BENEFITS: dict[str, tuple[tuple[str, str], ...]] = {code: () for code in AVERAGE_RATES}
 
 
 class Engine(Protocol):
@@ -166,6 +190,27 @@ class TaxEngineDeductions:
                 )
             return Rate(value, _unit(unit))
 
+        def benefits(parts: tuple[tuple[str, str], ...]) -> tuple[Benefit, ...]:
+            listed: list[Benefit] = []
+            for form, kind in parts:
+                value, unit = read(form, kind)
+                if unit is None:
+                    raise DeductionsUnavailableError(
+                        f"{jurisdiction_code} {year}: {kind} has no unit"
+                    )
+                label = self._kinds.kind(kind).label
+                (sheet,) = sheets[form]
+                listed.append(
+                    Benefit(
+                        label=label,
+                        name=_present(sheet.title(label)),
+                        reference=_present(sheet.reference(label)),
+                        amount=value,
+                        unit=_unit(unit),
+                    )
+                )
+            return tuple(listed)
+
         trace: list[FormTrace] = []
         if with_trace:
             for form, form_sheets in sheets.items():
@@ -196,4 +241,6 @@ class TaxEngineDeductions:
             unit=_unit(unit),
             average_income_tax_rate=rate(AVERAGE_RATES[jurisdiction_code]),
             marginal_income_tax_rate=rate(MARGINAL_RATES[jurisdiction_code]),
+            return_benefits=benefits(RETURN_BENEFITS[jurisdiction_code]),
+            other_benefits=benefits(OTHER_BENEFITS[jurisdiction_code]),
         )

@@ -90,15 +90,33 @@ class Rate:
 
 
 @dataclass(frozen=True)
+class Benefit:
+    """One benefit and what the salary gets of it, listed even when `amount` is 0. `label`,
+    `name` and `reference` are the calculator's own: the figure's identifier (opaque), its display
+    name in English and the form line it is on, each when the calculator gives one. `unit` is the
+    unit of `amount`. A benefit is never part of the deductions."""
+
+    label: str
+    name: str | None
+    reference: str | None
+    amount: Decimal
+    unit: Unit
+
+
+@dataclass(frozen=True)
 class Deductions:
     """The figures asked for, with the steps that explain them. `unit` is the one unit all the
-    figures are in. The two rates have their own units and are not part of the figures."""
+    figures are in. The two rates have their own units and are not part of the figures.
+    `return_benefits` are amounts that arrive only when the return is filed and `other_benefits`
+    amounts paid outside the return; both always list every part of the jurisdiction."""
 
     figures: tuple[DeductionFigure, ...]
     trace: tuple[FormTrace, ...]
     unit: Unit
     average_income_tax_rate: Rate
     marginal_income_tax_rate: Rate
+    return_benefits: tuple[Benefit, ...]
+    other_benefits: tuple[Benefit, ...]
 
 
 @dataclass(frozen=True)
@@ -110,6 +128,8 @@ class TakeHomeResult:
     unit: Unit
     average_income_tax_rate: Rate
     marginal_income_tax_rate: Rate
+    return_benefits: tuple[Benefit, ...]
+    other_benefits: tuple[Benefit, ...]
     trace: tuple[FormTrace, ...] | None
 
     @classmethod
@@ -121,9 +141,12 @@ class TakeHomeResult:
         unit: Unit,
         average_income_tax_rate: Rate,
         marginal_income_tax_rate: Rate,
+        return_benefits: tuple[Benefit, ...],
+        other_benefits: tuple[Benefit, ...],
         trace: tuple[FormTrace, ...] | None,
     ) -> TakeHomeResult:
-        """Take-home pay is the salary minus the sum of the figures, in whole cents."""
+        """Take-home pay is the salary minus the sum of the figures, in whole cents; the benefits
+        are not in it."""
         total = sum((figure.amount for figure in figures), Decimal(0))
         return cls(
             salary=salary.quantize(CENTS),
@@ -133,6 +156,8 @@ class TakeHomeResult:
             unit=unit,
             average_income_tax_rate=average_income_tax_rate,
             marginal_income_tax_rate=marginal_income_tax_rate,
+            return_benefits=return_benefits,
+            other_benefits=other_benefits,
             trace=trace,
         )
 

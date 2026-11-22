@@ -141,6 +141,35 @@ class Rate(BaseModel):
     unit: Unit
 
 
+class Benefit(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    label: Annotated[
+        str,
+        Field(
+            description="Identifier of the benefit; opaque, to be compared and not parsed.",
+            examples=["ca/cwb_line_45300"],
+        ),
+    ]
+    name: Annotated[
+        str | None,
+        Field(
+            description="Display name of the benefit, in English; null if none is known.",
+            examples=["Canada workers benefit (CWB)"],
+        ),
+    ] = None
+    reference: Annotated[
+        str | None,
+        Field(
+            description="The form line the benefit is on; null if the form prints none.",
+            examples=["45300"],
+        ),
+    ] = None
+    amount: Annotated[str, Field(examples=["1633.00"])]
+    unit: Unit
+
+
 class TraceLine(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -229,6 +258,18 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
     unit: Unit
     average_income_tax_rate: Rate
     marginal_income_tax_rate: Rate
+    return_benefits: Annotated[
+        list[Benefit],
+        Field(
+            description='Amounts that are not in the paycheck but are on the return, and arrive as a refund when it is filed. Never part of total_deductions. Every part is listed, at "0.00" when there is none, so the list always has the same entries for a jurisdiction.'
+        ),
+    ]
+    other_benefits: Annotated[
+        list[Benefit],
+        Field(
+            description='Amounts paid outside the return. Every part is listed, at "0.00" when there is none; empty for a jurisdiction that has none. Never part of total_deductions.'
+        ),
+    ]
     provisional: Annotated[
         bool, Field(description="True when the year's figures are provisional.", examples=[False])
     ]

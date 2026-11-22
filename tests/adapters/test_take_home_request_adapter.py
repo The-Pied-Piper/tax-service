@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from app.adapters.inbound.take_home_calculations_adapter import TakeHomeCalculationsRequestAdapter
-from app.domain.take_home import FormTrace, Rate, TakeHomeResult, TraceEntry, Unit
+from app.domain.take_home import Benefit, FormTrace, Rate, TakeHomeResult, TraceEntry, Unit
 from app.generated.models import ComputeTakeHomeCalculationRequest
 
 CAD = Unit("ca/cad", "before", "CA$", "CA$", False, False)
@@ -33,6 +33,8 @@ class Recorder:
             unit=CAD,
             average_income_tax_rate=AVERAGE,
             marginal_income_tax_rate=MARGINAL,
+            return_benefits=(),
+            other_benefits=(),
             trace=None,
         )
 
@@ -79,6 +81,11 @@ class Tracing:
             unit=CAD,
             average_income_tax_rate=AVERAGE,
             marginal_income_tax_rate=MARGINAL,
+            return_benefits=(
+                Benefit("ex_cwb", "Example benefit", "45300", Decimal("1633.00"), CAD),
+                Benefit("ex_zero", None, None, Decimal("0.00"), CAD),
+            ),
+            other_benefits=(Benefit("ex_other", "Other", None, Decimal("363.00"), CAD),),
             trace=trace,
         )
 
@@ -137,3 +144,19 @@ async def test_the_rates_go_out_as_plain_strings_with_their_unit() -> None:
             False,
         )
         assert unit.as_percentage is True
+
+
+async def test_every_benefit_goes_out_with_its_amount_as_a_string_even_at_zero() -> None:
+    request = ComputeTakeHomeCalculationRequest(
+        jurisdiction_code="CA-ON", year=2025, salary="70000.00"
+    )
+    response = await TakeHomeCalculationsRequestAdapter(Tracing()).compute_take_home_calculation(
+        request
+    )
+    assert [
+        (b.label, b.name, b.reference, b.amount, b.unit.name) for b in response.return_benefits
+    ] == [
+        ("ex_cwb", "Example benefit", "45300", "1633.00", "ca/cad"),
+        ("ex_zero", None, None, "0.00", "ca/cad"),
+    ]
+    assert [(b.label, b.amount) for b in response.other_benefits] == [("ex_other", "363.00")]
