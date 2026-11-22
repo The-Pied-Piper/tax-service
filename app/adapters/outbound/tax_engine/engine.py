@@ -193,13 +193,18 @@ class TaxEngineDeductions:
         def benefits(parts: tuple[tuple[str, str], ...]) -> tuple[Benefit, ...]:
             listed: list[Benefit] = []
             for form, kind in parts:
-                value, unit = read(form, kind)
+                (sheet,) = sheets[form]
+                artifact = sheet.get(self._kinds.kind(kind))
+                # A blank line (the province prints none, or the return has nothing there) is
+                # still listed, at 0.00.
+                value, unit = (
+                    (Decimal("0.00"), artifact.unit) if artifact.is_blank else read(form, kind)
+                )
                 if unit is None:
                     raise DeductionsUnavailableError(
                         f"{jurisdiction_code} {year}: {kind} has no unit"
                     )
                 label = self._kinds.kind(kind).label
-                (sheet,) = sheets[form]
                 listed.append(
                     Benefit(
                         label=label,

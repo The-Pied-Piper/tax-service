@@ -42,6 +42,35 @@ async def test_70000_in_ontario() -> None:
 
 
 @pytest.mark.parametrize(
+    ("salary", "expected"),
+    [
+        (20000, ["0.00", "1633.00", "0.00"]),  # the provincial credits line is blank: still listed
+        (2010, ["22.96", "0.00", "0.00"]),
+        (70000, ["0.00", "0.00", "0.00"]),
+    ],
+)
+async def test_every_return_benefit_is_listed_with_its_title_line_and_unit(
+    salary: int, expected: list[str]
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), salary=salary)
+    assert [(b.reference, b.name) for b in deductions.return_benefits] == [
+        ("45000", "Employment insurance (EI) overpayment"),
+        ("45300", "Canada workers benefit (CWB)"),
+        ("47900", "Provincial or territorial credits"),
+    ]
+    assert [str(b.amount) for b in deductions.return_benefits] == expected
+    assert all(b.unit == CAD for b in deductions.return_benefits)
+    assert deductions.other_benefits == ()
+
+
+@pytest.mark.parametrize("code", sorted(AVERAGE_RATES))
+async def test_each_jurisdiction_lists_return_benefits_and_no_other_benefits(code: str) -> None:
+    deductions = await calculate(TaxEngineDeductions(), code=code, salary=20000)
+    assert len(deductions.return_benefits) == 3
+    assert deductions.other_benefits == ()
+
+
+@pytest.mark.parametrize(
     ("year", "average", "marginal"),
     [(2025, "0.1642", "0.2965"), (2026, "0.1591", "0.2965")],
 )
@@ -127,9 +156,31 @@ class FakeSheet:
         raise AssertionError("asked for the reference of a line with no label")
 
 
+class BenefitSheet:
+    """The T1 worksheet: each benefit is 1.00 dollars and the engine titles none of them."""
+
+    form_title = ""
+    trace = ()
+
+    def get(self, kind: Any) -> Any:
+        return SimpleNamespace(
+            value=Decimal("1.00"), is_blank=False, unit=SimpleNamespace(identifier="ca/cad")
+        )
+
+    def title(self, label: str) -> None:
+        return None
+
+    def reference(self, label: str) -> None:
+        return None
+
+
 class FakeEngine:
     def compute(self, *args: Any) -> Any:
-        return {"ca/t2204": [FakeSheet()], "ca-on/return": [FakeSheet()]}
+        return {
+            "ca/t2204": [FakeSheet()],
+            "ca-on/return": [FakeSheet()],
+            "ca/t1_tax_and_credits": [BenefitSheet()],
+        }
 
 
 async def test_what_the_engine_does_not_title_is_absent() -> None:
@@ -225,7 +276,12 @@ class UnitEngine:
 
     def compute(self, *args: Any) -> Any:
         sheet = UnitSheet(self._units)
-        return {"ca/t2204": [sheet], "ca/schedule_8": [sheet], "ca-on/return": [sheet]}
+        return {
+            "ca/t2204": [sheet],
+            "ca/schedule_8": [sheet],
+            "ca-on/return": [sheet],
+            "ca/t1_tax_and_credits": [BenefitSheet()],
+        }
 
 
 EI = "ca/t2204_premiums_deducted"

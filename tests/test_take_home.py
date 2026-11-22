@@ -48,6 +48,43 @@ def compute(client: TestClient, **overrides: Any) -> Any:
     return client.post(COMPUTE, json=body)
 
 
+def benefit(label: str, name: str, reference: str, amount: str = "0.00") -> dict[str, Any]:
+    return {
+        "label": label,
+        "name": name,
+        "reference": reference,
+        "amount": amount,
+        "unit": CAD,
+    }
+
+
+def amounts(body: Any) -> dict[str, str]:
+    return {b["reference"]: b["amount"] for b in body["return_benefits"]}
+
+
+@pytest.mark.parametrize(
+    ("salary", "expected"),
+    [
+        ("20000.00", {"45000": "0.00", "45300": "1633.00", "47900": "0.00"}),
+        ("2010.00", {"45000": "22.96", "45300": "0.00", "47900": "0.00"}),
+        ("70000.00", {"45000": "0.00", "45300": "0.00", "47900": "0.00"}),
+    ],
+)
+def test_return_benefits_list_every_part_in_ontario(
+    client: TestClient, salary: str, expected: dict[str, str]
+) -> None:
+    body = compute(client, salary=salary).json()
+    assert amounts(body) == expected
+    assert body["other_benefits"] == []
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"])
+def test_every_province_lists_the_same_three_return_benefits(client: TestClient, code: str) -> None:
+    body = compute(client, jurisdiction_code=code, salary="20000.00").json()
+    assert list(amounts(body)) == ["45000", "45300", "47900"]
+    assert body["other_benefits"] == []
+
+
 def test_70000_in_ontario_2025(client: TestClient) -> None:
     response = compute(client)
     assert response.status_code == 200
@@ -59,6 +96,12 @@ def test_70000_in_ontario_2025(client: TestClient) -> None:
         "unit": CAD,
         "average_income_tax_rate": {"amount": "0.1642", "unit": PERCENT},
         "marginal_income_tax_rate": {"amount": "0.2965", "unit": PERCENT},
+        "return_benefits": [
+            benefit("ei_overpayment_line_45000", "Employment insurance (EI) overpayment", "45000"),
+            benefit("cwb_line_45300", "Canada workers benefit (CWB)", "45300"),
+            benefit("provincial_credits_line_47900", "Provincial or territorial credits", "47900"),
+        ],
+        "other_benefits": [],
     }
 
 
