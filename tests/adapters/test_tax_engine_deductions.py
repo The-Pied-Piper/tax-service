@@ -263,8 +263,9 @@ async def test_a_rate_without_a_unit_is_the_ports_error(rate: str) -> None:
         await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad", rate: None})
 
 
-# Ontario's income_tax is T1 line 43500 (total payable, before credits). The Canada workers benefit
-# (line 45300) and the EI overpayment (line 45000) arrive at filing, so they do not lower it.
+# Ontario's income_tax is T1 line 43500 (total payable, before line 48200 credits).
+# The Canada workers benefit (line 45300) and the EI overpayment (line 45000) are part of those
+# credits, so they do not lower it.
 ONTARIO_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "11497.09"),
@@ -282,7 +283,7 @@ async def test_ontario_income_tax_with_the_real_engine(
     assert deductions.unit == CAD
 
 
-# Alberta's income_tax is T1 line 43500 (total payable, before credits).
+# Alberta's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 ALBERTA_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "11183.76"),
@@ -323,7 +324,7 @@ async def test_alberta_rates_are_read_from_the_alberta_form(
     assert "ca-ab/return" in {form.form for form in deductions.trace}
 
 
-# British Columbia's income_tax is T1 line 43500 (total payable, before credits).
+# British Columbia's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 BRITISH_COLUMBIA_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "10748.03"),
@@ -364,7 +365,7 @@ async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
     assert "ca-bc/return" in {form.form for form in deductions.trace}
 
 
-# Manitoba's income_tax is T1 line 43500 (total payable, before credits).
+# Manitoba's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 MANITOBA_INCOME_TAX = [
     (2025, 20000, "442.17"),
     (2025, 70000, "13333.23"),
@@ -405,7 +406,7 @@ async def test_manitoba_rates_are_read_from_the_manitoba_form(
     assert "ca-mb/return" in {form.form for form in deductions.trace}
 
 
-# Saskatchewan's income_tax is T1 line 43500 (total payable, before credits).
+# Saskatchewan's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 SASKATCHEWAN_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "12677.94"),
@@ -446,7 +447,7 @@ async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
     assert "ca-sk/return" in {form.form for form in deductions.trace}
 
 
-# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before credits).
+# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 NEWFOUNDLAND_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "13733.13"),
@@ -547,7 +548,8 @@ async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
 async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
     salary: int, take_home: str
 ) -> None:
-    # The same as Ontario's: the BC sales tax credit (BC479) is refundable, so it is not taken off.
+    # The same as Ontario's: the BC sales tax credit (BC479, line 47900) is part of
+    # the total credits of line 48200, which are not taken off.
     deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
@@ -566,8 +568,8 @@ async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
 async def test_manitoba_take_home_near_the_t2204_refund_threshold(
     salary: int, take_home: str
 ) -> None:
-    # The same as Ontario's: the Manitoba personal tax credit (MB479) is refundable, so it is not
-    # taken off.
+    # The same as Ontario's: the Manitoba personal tax credit (MB479, line 47900) is part of the
+    # total credits of line 48200, which are not taken off.
     deductions = await calculate(TaxEngineDeductions(), code="CA-MB", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)

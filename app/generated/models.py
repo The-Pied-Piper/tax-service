@@ -222,7 +222,10 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
     salary: Annotated[str, Field(examples=["70000.00"])]
     total_deductions: Annotated[
         str,
-        Field(description="Contributions and income tax together. Income tax is the total payable, before any credits.", examples=["16531.32"]),
+        Field(
+            description="Contributions and income tax together. Income tax is the total payable, before the total credits are subtracted.",
+            examples=["16531.32"],
+        ),
     ]
     take_home: Annotated[
         str, Field(description="Salary minus total deductions.", examples=["53468.68"])
