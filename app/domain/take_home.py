@@ -124,9 +124,11 @@ class TakeHomeResult:
         trace: tuple[FormTrace, ...] | None,
     ) -> TakeHomeResult:
         """Take-home pay is the salary minus the sum of the figures, in whole cents. `income_tax` is
-        the `income_tax` figure alone: the part of the total that is tax, not a contribution."""
+        the figure of that name alone, the tax part of the total."""
         total = sum((figure.amount for figure in figures), Decimal(0))
-        income_tax = sum((f.amount for f in figures if f.item == "income_tax"), Decimal(0))
+        income_tax = sum(
+            (figure.amount for figure in figures if figure.item == "income_tax"), Decimal(0)
+        )
         return cls(
             salary=salary.quantize(CENTS),
             total_deductions=total.quantize(CENTS),
