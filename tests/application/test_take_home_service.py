@@ -85,6 +85,12 @@ async def test_take_home_is_salary_minus_the_sum_of_the_items() -> None:
     )
 
 
+async def test_income_tax_is_the_income_tax_item_on_its_own() -> None:
+    result = await compute(FakeDeductions(list(reversed(FIGURES.items()))))
+    assert result.income_tax == Decimal("11497.09")
+    assert result.total_deductions - result.income_tax == Decimal("5034.23")
+
+
 async def test_it_asks_for_the_items_the_jurisdiction_declares() -> None:
     fake = FakeDeductions()
     await compute(fake)
