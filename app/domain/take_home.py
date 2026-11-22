@@ -104,6 +104,7 @@ class Deductions:
 class TakeHomeResult:
     salary: Decimal
     total_deductions: Decimal
+    income_tax: Decimal
     take_home: Decimal
     provisional: bool
     unit: Unit
@@ -122,11 +123,14 @@ class TakeHomeResult:
         marginal_income_tax_rate: Rate,
         trace: tuple[FormTrace, ...] | None,
     ) -> TakeHomeResult:
-        """Take-home pay is the salary minus the sum of the figures, in whole cents."""
+        """Take-home pay is the salary minus the sum of the figures, in whole cents. `income_tax` is
+        the `income_tax` figure alone: the part of the total that is tax, not a contribution."""
         total = sum((figure.amount for figure in figures), Decimal(0))
+        income_tax = sum((f.amount for f in figures if f.item == "income_tax"), Decimal(0))
         return cls(
             salary=salary.quantize(CENTS),
             total_deductions=total.quantize(CENTS),
+            income_tax=income_tax.quantize(CENTS),
             take_home=(salary - total).quantize(CENTS),
             provisional=provisional,
             unit=unit,

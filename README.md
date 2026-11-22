@@ -23,6 +23,7 @@ The answer (the `unit` objects, which describe how to format each amount, are le
 {
   "salary": "70000.00",
   "total_deductions": "16531.32",
+  "income_tax": "11497.09",
   "take_home": "53468.68",
   "average_income_tax_rate": { "amount": "0.1642" },
   "marginal_income_tax_rate": { "amount": "0.2965" },

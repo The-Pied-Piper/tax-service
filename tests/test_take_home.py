@@ -1,6 +1,7 @@
 """The take-home endpoints, run against the real tax engine (no database is touched)."""
 
 from dataclasses import replace
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -54,6 +55,7 @@ def test_70000_in_ontario_2025(client: TestClient) -> None:
     assert response.json() == {
         "salary": "70000.00",
         "total_deductions": "16531.32",
+        "income_tax": "11497.09",
         "take_home": "53468.68",
         "provisional": False,
         "unit": CAD,
@@ -518,3 +520,76 @@ def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
     response = compute(client, jurisdiction_code="CA-AB", year=2024)
     assert response.status_code == 400
     assert response.json()["field"] == "year"
+
+
+# Income tax on its own, T1 line 43500 "total payable" (before the total credits), per served
+# province: (jurisdiction, year, salary, income_tax, total_deductions).
+INCOME_TAX = [
+    ("CA-ON", 2025, "20000.00", "158.09", "1467.84"),
+    ("CA-ON", 2025, "70000.00", "11497.09", "16531.32"),
+    ("CA-ON", 2025, "200000.00", "63787.94", "69295.52"),
+    ("CA-ON", 2026, "20000.00", "103.49", "1411.24"),
+    ("CA-ON", 2026, "70000.00", "11133.93", "16213.75"),
+    ("CA-ON", 2026, "200000.00", "62952.21", "68721.73"),
+    ("CA-AB", 2025, "20000.00", "158.09", "1467.84"),
+    ("CA-AB", 2025, "70000.00", "11183.76", "16217.99"),
+    ("CA-AB", 2025, "200000.00", "57148.10", "62655.68"),
+    ("CA-AB", 2026, "20000.00", "103.49", "1411.24"),
+    ("CA-AB", 2026, "70000.00", "10812.98", "15892.80"),
+    ("CA-AB", 2026, "200000.00", "56376.82", "62146.34"),
+    ("CA-BC", 2025, "20000.00", "158.09", "1467.84"),
+    ("CA-BC", 2025, "70000.00", "10748.03", "15782.26"),
+    ("CA-BC", 2025, "200000.00", "58698.50", "64206.08"),
+    ("CA-BC", 2026, "20000.00", "103.49", "1411.24"),
+    ("CA-BC", 2026, "70000.00", "10572.03", "15651.85"),
+    ("CA-BC", 2026, "200000.00", "57956.15", "63725.67"),
+    ("CA-MB", 2025, "20000.00", "442.17", "1751.92"),
+    ("CA-MB", 2025, "70000.00", "13333.23", "18367.46"),
+    ("CA-MB", 2025, "200000.00", "66331.29", "71838.87"),
+    ("CA-MB", 2026, "20000.00", "387.79", "1695.54"),
+    ("CA-MB", 2026, "70000.00", "13020.86", "18100.68"),
+    ("CA-MB", 2026, "200000.00", "65708.31", "71477.83"),
+    ("CA-SK", 2025, "20000.00", "158.09", "1467.84"),
+    ("CA-SK", 2025, "70000.00", "12677.94", "17712.17"),
+    ("CA-SK", 2025, "200000.00", "61675.67", "67183.25"),
+    ("CA-SK", 2026, "20000.00", "103.49", "1411.24"),
+    ("CA-SK", 2026, "70000.00", "12250.87", "17330.69"),
+    ("CA-SK", 2026, "200000.00", "60878.92", "66648.44"),
+    ("CA-NL", 2025, "20000.00", "158.09", "1467.84"),
+    ("CA-NL", 2025, "70000.00", "13733.13", "18767.36"),
+    ("CA-NL", 2025, "200000.00", "66660.07", "72167.65"),
+    ("CA-NL", 2026, "20000.00", "103.49", "1411.24"),
+    ("CA-NL", 2026, "70000.00", "13217.18", "18297.00"),
+    ("CA-NL", 2026, "200000.00", "65789.37", "71558.89"),
+]
+
+
+@pytest.mark.parametrize(("code", "year", "salary", "income_tax", "total"), INCOME_TAX)
+def test_income_tax_is_the_tax_part_of_the_total(
+    client: TestClient, code: str, year: int, salary: str, income_tax: str, total: str
+) -> None:
+    body = compute(client, jurisdiction_code=code, year=year, salary=salary).json()
+    assert body["income_tax"] == income_tax
+    assert body["total_deductions"] == total
+
+
+@pytest.mark.parametrize("year", [2025, 2026])
+@pytest.mark.parametrize("salary", ["20000.00", "70000.00", "200000.00"])
+def test_contributions_are_total_deductions_less_income_tax_in_every_province(
+    client: TestClient, year: int, salary: str
+) -> None:
+    """CPP and EI do not depend on the province, so total_deductions less income_tax (what they add
+    up to) is the same everywhere; it breaks if income_tax is read from a different line."""
+    contributions = set()
+    for code in ("CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"):
+        body = compute(client, jurisdiction_code=code, year=year, salary=salary).json()
+        contributions.add(Decimal(body["total_deductions"]) - Decimal(body["income_tax"]))
+    assert len(contributions) == 1
+
+
+@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"])
+def test_income_tax_is_the_total_payable_line_of_the_trace(client: TestClient, code: str) -> None:
+    body = compute(client, jurisdiction_code=code, include_trace=True).json()
+    (t1,) = [form for form in body["trace"] if form["form"] == "ca/t1_tax_and_credits"]
+    amounts = [line["amount"] for line in t1["lines"] if line["label"] == "total_payable"]
+    assert amounts == [body["income_tax"]]

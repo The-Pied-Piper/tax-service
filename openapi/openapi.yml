@@ -136,13 +136,17 @@ components:
           default: false
     ComputeTakeHomeCalculationResponse:
       type: object
-      required: [salary, total_deductions, take_home, unit, average_income_tax_rate, marginal_income_tax_rate, provisional]
+      required: [salary, total_deductions, income_tax, take_home, unit, average_income_tax_rate, marginal_income_tax_rate, provisional]
       properties:
         salary: {type: string, example: "70000.00"}
         total_deductions:
           type: string
           description: Contributions and income tax together. Income tax is the total payable, before the total credits are subtracted.
           example: "16531.32"
+        income_tax:
+          type: string
+          description: The income tax part of total_deductions on its own, federal and provincial together, as the total payable before the total credits are subtracted. Contributions are not in it.
+          example: "11497.09"
         take_home:
           type: string
           description: Salary minus total deductions.

@@ -42,6 +42,7 @@ class TakeHomeCalculationsRequestAdapter:
         response = ComputeTakeHomeCalculationResponse(
             salary=str(result.salary),
             total_deductions=str(result.total_deductions),
+            income_tax=str(result.income_tax),
             take_home=str(result.take_home),
             provisional=result.provisional,
             unit=_unit(result.unit),

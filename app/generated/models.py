@@ -227,6 +227,13 @@ class ComputeTakeHomeCalculationResponse(BaseModel):
             examples=["16531.32"],
         ),
     ]
+    income_tax: Annotated[
+        str,
+        Field(
+            description="The income tax part of total_deductions on its own, federal and provincial together, as the total payable before the total credits are subtracted. Contributions are not in it.",
+            examples=["11497.09"],
+        ),
+    ]
     take_home: Annotated[
         str, Field(description="Salary minus total deductions.", examples=["53468.68"])
     ]

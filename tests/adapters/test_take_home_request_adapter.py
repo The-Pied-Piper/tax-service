@@ -28,6 +28,7 @@ class Recorder:
         return TakeHomeResult(
             salary=salary,
             total_deductions=Decimal(0),
+            income_tax=Decimal(0),
             take_home=salary,
             provisional=False,
             unit=CAD,
@@ -74,6 +75,7 @@ class Tracing:
         return TakeHomeResult(
             salary=salary,
             total_deductions=Decimal(0),
+            income_tax=Decimal(0),
             take_home=salary,
             provisional=False,
             unit=CAD,
@@ -123,6 +125,7 @@ async def test_the_rates_go_out_as_plain_strings_with_their_unit() -> None:
     response = await TakeHomeCalculationsRequestAdapter(Tracing()).compute_take_home_calculation(
         request
     )
+    assert response.income_tax == "0.00"
     for rate, amount in (
         (response.average_income_tax_rate, "0.1642"),
         (response.marginal_income_tax_rate, "0.2965"),
