@@ -29,20 +29,6 @@ async def calculate(
     return await calculator.calculate(code, year, Decimal(salary), language, ONTARIO_ITEMS, trace)
 
 
-@pytest.mark.parametrize(
-    ("year", "salary", "income_tax"),
-    [(2025, 20000, "158.09"), (2025, 70000, "11497.09"), (2025, 2010, "0.00")],
-)
-async def test_ontario_income_tax_is_total_payable_not_the_balance_after_refundable_credits(
-    year: int, salary: int, income_tax: str
-) -> None:
-    # The Canada workers benefit (T1 line 48200) and the EI overpayment refund arrive at filing,
-    # so they do not lower the income tax taken off take-home pay.
-    deductions = await calculate(TaxEngineDeductions(), year=year, salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-
-
 async def test_70000_in_ontario() -> None:
     deductions = await calculate(TaxEngineDeductions())
     assert {f.item: f.amount for f in deductions.figures} == {
@@ -277,7 +263,26 @@ async def test_a_rate_without_a_unit_is_the_ports_error(rate: str) -> None:
         await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad", rate: None})
 
 
-# Alberta's income_tax is the deduction item for T1 line 43500, total payable (never negative).
+# Ontario's income_tax is T1 line 43500 (total payable, before credits). The Canada workers benefit
+# (line 45300) and the EI overpayment (line 45000) arrive at filing, so they do not lower it.
+ONTARIO_INCOME_TAX = [
+    (2025, 20000, "158.09"),
+    (2025, 70000, "11497.09"),
+    (2025, 2010, "0.00"),
+]
+
+
+@pytest.mark.parametrize(("year", "salary", "income_tax"), ONTARIO_INCOME_TAX)
+async def test_ontario_income_tax_with_the_real_engine(
+    year: int, salary: int, income_tax: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year, salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert figures["income_tax"] == Decimal(income_tax)
+    assert deductions.unit == CAD
+
+
+# Alberta's income_tax is T1 line 43500 (total payable, before credits).
 ALBERTA_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "11183.76"),
@@ -318,7 +323,7 @@ async def test_alberta_rates_are_read_from_the_alberta_form(
     assert "ca-ab/return" in {form.form for form in deductions.trace}
 
 
-# British Columbia's income_tax is the deduction item for T1 line 43500 (never negative).
+# British Columbia's income_tax is T1 line 43500 (total payable, before credits).
 BRITISH_COLUMBIA_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "10748.03"),
@@ -359,7 +364,7 @@ async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
     assert "ca-bc/return" in {form.form for form in deductions.trace}
 
 
-# Manitoba's income_tax is the deduction item for T1 line 43500, total payable (never negative).
+# Manitoba's income_tax is T1 line 43500 (total payable, before credits).
 MANITOBA_INCOME_TAX = [
     (2025, 20000, "442.17"),
     (2025, 70000, "13333.23"),
@@ -400,7 +405,7 @@ async def test_manitoba_rates_are_read_from_the_manitoba_form(
     assert "ca-mb/return" in {form.form for form in deductions.trace}
 
 
-# Saskatchewan's income_tax is the deduction item for T1 line 43500, total payable (never negative).
+# Saskatchewan's income_tax is T1 line 43500 (total payable, before credits).
 SASKATCHEWAN_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "12677.94"),
@@ -441,7 +446,7 @@ async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
     assert "ca-sk/return" in {form.form for form in deductions.trace}
 
 
-# Newfoundland and Labrador's income_tax is T1 line 43500, total payable (never negative).
+# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before credits).
 NEWFOUNDLAND_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "13733.13"),

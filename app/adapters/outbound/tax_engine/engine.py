@@ -2,15 +2,15 @@
 
 It only maps each deduction item the application asks for to the engine's form and kind, and reads
 the figure off the worksheet: CPP (base and enhanced) and CPP2 from Schedule 8, EI from T2204
-"premiums deducted" and income tax as T1 line 43500 "total payable" (federal and provincial tax;
-the refundable credits of line 48200 are not taken off, as they only arrive when the return is
-filed). The average and marginal income tax rates are read the same way off the jurisdiction's
-own return (the form and kinds are per-jurisdiction policy here), each with its own unit; a rate
-without a unit makes the deductions unavailable. It also reads the unit of each trace row off the
-worksheet, and the unit the figures are in: they must all have the same one (the rates do not take
-part), else the deductions are unavailable. What "total deductions" is made of is decided by the
-domain. The engine is synchronous, so it runs on a worker thread here; the application only sees an
-async port. Everything the engine raises is translated into the port's own errors.
+"premiums deducted" and income tax as T1 line 43500 "total payable" (before the total credits of
+line 48200, which are not taken off). The average and marginal income tax rates are read the same
+way off the jurisdiction's own return (the form and kinds are per-jurisdiction policy here), each
+with its own unit; a rate without a unit makes the deductions unavailable. It also reads the unit of
+each trace row off the worksheet, and the unit the figures are in: they must all have the same one
+(the rates do not take part), else the deductions are unavailable. What "total deductions" is made
+of is decided by the domain. The engine is synchronous, so it runs on a worker thread here; the
+application only sees an async port. Everything the engine raises is translated into the port's own
+errors.
 """
 
 from __future__ import annotations

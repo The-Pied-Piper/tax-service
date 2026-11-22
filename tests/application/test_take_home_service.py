@@ -161,7 +161,7 @@ async def test_the_rates_are_passed_through_and_are_not_deductions() -> None:
 
 
 async def test_a_negative_figure_is_summed_and_take_home_can_exceed_the_salary() -> None:
-    # Refundable credits can exceed the tax, so the income tax item is negative (made-up split).
+    # Whatever a port returns, a negative figure is summed like any other (made-up split).
     fake = FakeDeductions(
         [
             ("cpp_base", "1000.00"),

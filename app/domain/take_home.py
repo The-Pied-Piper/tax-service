@@ -71,8 +71,8 @@ class FormTrace:
 class DeductionFigure:
     """One kind of deduction (for example `ei`) and what the salary pays of it.
 
-    `income_tax` is the tax alone (T1 line 43500, total payable), so no amount is negative: the
-    refundable credits that only arrive when the return is filed do not reduce it. The total
+    `income_tax` is the total payable, before any credits are taken off, so the credits that
+    arrive when the return is filed do not reduce it. The total
     deductions are the plain sum of the figures.
     """
 
