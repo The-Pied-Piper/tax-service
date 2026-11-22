@@ -9,9 +9,9 @@ without a unit makes the deductions unavailable. It also reads the unit of each 
 worksheet, and the unit the figures are in: they must all have the same one (the rates do not take
 part), else the deductions are unavailable. What "total deductions" is made of is decided by the
 domain. The engine is synchronous, so it runs on a worker thread here; the application only sees an
-async port. Each jurisdiction's return benefits (the parts of T1 line 48200) and other benefits (paid outside
-the return) are read the same way and listed with their title, form line and amount, every part
-even at 0. Everything the engine raises is translated into the port's own errors.
+async port. Each jurisdiction's return benefits (the parts of T1 line 48200) and other benefits
+(paid outside the return) are read the same way and listed with their title, form line and amount,
+every part even at 0. Everything the engine raises is translated into the port's own errors.
 """
 
 from __future__ import annotations
