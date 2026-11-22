@@ -275,24 +275,27 @@ def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> Non
     assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
 
 
-# Alberta: (year, salary, total_deductions, take_home, average rate, marginal rate)
+# Alberta: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 ALBERTA = [
-    (2025, "20000.00", "1467.84", "18532.16", "0.0079", "0.145"),
-    (2025, "70000.00", "16217.99", "53782.01", "0.1598", "0.305"),
-    (2025, "200000.00", "62655.68", "137344.32", "0.2857", "0.42"),
-    (2026, "20000.00", "1411.24", "18588.76", "0.0052", "0.14"),
-    (2026, "70000.00", "15892.80", "54107.20", "0.1545", "0.305"),
-    (2026, "200000.00", "62146.34", "137853.66", "0.2819", "0.42"),
+    (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0079", "0.145"),
+    (2025, "70000.00", "16217.99", "11183.76", "53782.01", "0.1598", "0.305"),
+    (2025, "200000.00", "62655.68", "57148.10", "137344.32", "0.2857", "0.42"),
+    (2026, "20000.00", "1411.24", "103.49", "18588.76", "0.0052", "0.14"),
+    (2026, "70000.00", "15892.80", "10812.98", "54107.20", "0.1545", "0.305"),
+    (2026, "200000.00", "62146.34", "56376.82", "137853.66", "0.2819", "0.42"),
 ]
 
 
 @pytest.mark.parametrize("trace", [False, True])
-@pytest.mark.parametrize(("year", "salary", "total", "take_home", "average", "marginal"), ALBERTA)
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), ALBERTA
+)
 def test_alberta_compute_with_both_rates(
     client: TestClient,
     year: int,
     salary: str,
     total: str,
+    income_tax: str,
     take_home: str,
     average: str,
     marginal: str,
@@ -304,6 +307,7 @@ def test_alberta_compute_with_both_rates(
     assert response.status_code == 200
     body = response.json()
     assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
     assert body["take_home"] == take_home
     assert body["provisional"] is (year == 2026)
     assert body["unit"] == CAD
@@ -318,26 +322,27 @@ def test_ontario_70000_is_unchanged_by_alberta(client: TestClient) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
 
 
-# British Columbia: (year, salary, total_deductions, take_home, average rate, marginal rate)
+# British Columbia: (year, salary, total_deductions, income_tax, take_home, average, marginal)
 BRITISH_COLUMBIA = [
-    (2025, "20000.00", "1467.84", "18532.16", "0.0079", "0.145"),
-    (2025, "70000.00", "15782.26", "54217.74", "0.1535", "0.282"),
-    (2025, "275000.00", "100064.57", "174935.43", "0.3438", "0.535"),
-    (2026, "20000.00", "1411.24", "18588.76", "0.0052", "0.14"),
-    (2026, "70000.00", "15651.85", "54348.15", "0.1510", "0.282"),
-    (2026, "275000.00", "99175.26", "175824.74", "0.3397", "0.535"),
+    (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0079", "0.145"),
+    (2025, "70000.00", "15782.26", "10748.03", "54217.74", "0.1535", "0.282"),
+    (2025, "275000.00", "100064.57", "94556.99", "174935.43", "0.3438", "0.535"),
+    (2026, "20000.00", "1411.24", "103.49", "18588.76", "0.0052", "0.14"),
+    (2026, "70000.00", "15651.85", "10572.03", "54348.15", "0.1510", "0.282"),
+    (2026, "275000.00", "99175.26", "93405.74", "175824.74", "0.3397", "0.535"),
 ]
 
 
 @pytest.mark.parametrize("trace", [False, True])
 @pytest.mark.parametrize(
-    ("year", "salary", "total", "take_home", "average", "marginal"), BRITISH_COLUMBIA
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), BRITISH_COLUMBIA
 )
 def test_british_columbia_compute_with_both_rates(
     client: TestClient,
     year: int,
     salary: str,
     total: str,
+    income_tax: str,
     take_home: str,
     average: str,
     marginal: str,
@@ -349,6 +354,7 @@ def test_british_columbia_compute_with_both_rates(
     assert response.status_code == 200
     body = response.json()
     assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
     assert body["take_home"] == take_home
     assert body["provisional"] is (year == 2026)
     assert body["unit"] == CAD
@@ -369,24 +375,27 @@ def test_ontario_70000_is_unchanged_by_british_columbia(client: TestClient) -> N
     assert compute(client).json()["take_home"] == "53468.68"
 
 
-# Manitoba: (year, salary, total_deductions, take_home, average rate, marginal rate)
+# Manitoba: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 MANITOBA = [
-    (2025, "20000.00", "1751.92", "18248.08", "0.0221", "0.253"),
-    (2025, "70000.00", "18367.46", "51632.54", "0.1905", "0.3325"),
-    (2025, "275000.00", "108255.71", "166744.29", "0.3736", "0.5125212"),
-    (2026, "20000.00", "1695.54", "18304.46", "0.0194", "0.248"),
-    (2026, "70000.00", "18100.68", "51899.32", "0.1860", "0.3325"),
-    (2026, "275000.00", "107698.76", "167301.24", "0.3707", "0.5125212"),
+    (2025, "20000.00", "1751.92", "442.17", "18248.08", "0.0221", "0.253"),
+    (2025, "70000.00", "18367.46", "13333.23", "51632.54", "0.1905", "0.3325"),
+    (2025, "275000.00", "108255.71", "102748.13", "166744.29", "0.3736", "0.5125212"),
+    (2026, "20000.00", "1695.54", "387.79", "18304.46", "0.0194", "0.248"),
+    (2026, "70000.00", "18100.68", "13020.86", "51899.32", "0.1860", "0.3325"),
+    (2026, "275000.00", "107698.76", "101929.24", "167301.24", "0.3707", "0.5125212"),
 ]
 
 
 @pytest.mark.parametrize("trace", [False, True])
-@pytest.mark.parametrize(("year", "salary", "total", "take_home", "average", "marginal"), MANITOBA)
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), MANITOBA
+)
 def test_manitoba_compute_with_both_rates(
     client: TestClient,
     year: int,
     salary: str,
     total: str,
+    income_tax: str,
     take_home: str,
     average: str,
     marginal: str,
@@ -398,6 +407,7 @@ def test_manitoba_compute_with_both_rates(
     assert response.status_code == 200
     body = response.json()
     assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
     assert body["take_home"] == take_home
     assert body["provisional"] is (year == 2026)
     assert body["unit"] == CAD
@@ -414,26 +424,27 @@ def test_manitoba_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
     assert response.json()["field"] == "year"
 
 
-# Saskatchewan: (year, salary, total_deductions, take_home, average rate, marginal rate)
+# Saskatchewan: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 SASKATCHEWAN = [
-    (2025, "20000.00", "1467.84", "18532.16", "0.0079", "0.145"),
-    (2025, "70000.00", "17712.17", "52287.83", "0.1811", "0.33"),
-    (2025, "275000.00", "100795.15", "174204.85", "0.3465", "0.475"),
-    (2026, "20000.00", "1411.24", "18588.76", "0.0052", "0.14"),
-    (2026, "70000.00", "17330.69", "52669.31", "0.1750", "0.33"),
-    (2026, "275000.00", "100064.89", "174935.11", "0.3429", "0.475"),
+    (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0079", "0.145"),
+    (2025, "70000.00", "17712.17", "12677.94", "52287.83", "0.1811", "0.33"),
+    (2025, "275000.00", "100795.15", "95287.57", "174204.85", "0.3465", "0.475"),
+    (2026, "20000.00", "1411.24", "103.49", "18588.76", "0.0052", "0.14"),
+    (2026, "70000.00", "17330.69", "12250.87", "52669.31", "0.1750", "0.33"),
+    (2026, "275000.00", "100064.89", "94295.37", "174935.11", "0.3429", "0.475"),
 ]
 
 
 @pytest.mark.parametrize("trace", [False, True])
 @pytest.mark.parametrize(
-    ("year", "salary", "total", "take_home", "average", "marginal"), SASKATCHEWAN
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), SASKATCHEWAN
 )
 def test_saskatchewan_compute_with_both_rates(
     client: TestClient,
     year: int,
     salary: str,
     total: str,
+    income_tax: str,
     take_home: str,
     average: str,
     marginal: str,
@@ -445,6 +456,7 @@ def test_saskatchewan_compute_with_both_rates(
     assert response.status_code == 200
     body = response.json()
     assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
     assert body["take_home"] == take_home
     assert body["provisional"] is (year == 2026)
     assert body["unit"] == CAD
@@ -461,26 +473,27 @@ def test_saskatchewan_is_not_offered_in_a_year_it_lacks(client: TestClient) -> N
     assert response.json()["field"] == "year"
 
 
-# Newfoundland and Labrador: (year, salary, total_deductions, take_home, average, marginal)
+# Newfoundland and Labrador: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
 NEWFOUNDLAND = [
-    (2025, "20000.00", "1467.84", "18532.16", "0.0079", "0.232"),
-    (2025, "70000.00", "18767.36", "51232.64", "0.1962", "0.35"),
-    (2025, "275000.00", "109314.88", "165685.12", "0.3775", "0.528"),
-    (2026, "20000.00", "1411.24", "18588.76", "0.0052", "0.227"),
-    (2026, "70000.00", "18297.00", "51703.00", "0.1888", "0.35"),
-    (2026, "275000.00", "108460.99", "166539.01", "0.3734", "0.528"),
+    (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0079", "0.232"),
+    (2025, "70000.00", "18767.36", "13733.13", "51232.64", "0.1962", "0.35"),
+    (2025, "275000.00", "109314.88", "103807.30", "165685.12", "0.3775", "0.528"),
+    (2026, "20000.00", "1411.24", "103.49", "18588.76", "0.0052", "0.227"),
+    (2026, "70000.00", "18297.00", "13217.18", "51703.00", "0.1888", "0.35"),
+    (2026, "275000.00", "108460.99", "102691.47", "166539.01", "0.3734", "0.528"),
 ]
 
 
 @pytest.mark.parametrize("trace", [False, True])
 @pytest.mark.parametrize(
-    ("year", "salary", "total", "take_home", "average", "marginal"), NEWFOUNDLAND
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), NEWFOUNDLAND
 )
 def test_newfoundland_compute_with_both_rates(
     client: TestClient,
     year: int,
     salary: str,
     total: str,
+    income_tax: str,
     take_home: str,
     average: str,
     marginal: str,
@@ -492,6 +505,7 @@ def test_newfoundland_compute_with_both_rates(
     assert response.status_code == 200
     body = response.json()
     assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
     assert body["take_home"] == take_home
     assert body["provisional"] is (year == 2026)
     assert body["unit"] == CAD
@@ -520,57 +534,6 @@ def test_alberta_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
     response = compute(client, jurisdiction_code="CA-AB", year=2024)
     assert response.status_code == 400
     assert response.json()["field"] == "year"
-
-
-# Income tax on its own, T1 line 43500 "total payable" (before the total credits), per served
-# province: (jurisdiction, year, salary, income_tax, total_deductions).
-INCOME_TAX = [
-    ("CA-ON", 2025, "20000.00", "158.09", "1467.84"),
-    ("CA-ON", 2025, "70000.00", "11497.09", "16531.32"),
-    ("CA-ON", 2025, "200000.00", "63787.94", "69295.52"),
-    ("CA-ON", 2026, "20000.00", "103.49", "1411.24"),
-    ("CA-ON", 2026, "70000.00", "11133.93", "16213.75"),
-    ("CA-ON", 2026, "200000.00", "62952.21", "68721.73"),
-    ("CA-AB", 2025, "20000.00", "158.09", "1467.84"),
-    ("CA-AB", 2025, "70000.00", "11183.76", "16217.99"),
-    ("CA-AB", 2025, "200000.00", "57148.10", "62655.68"),
-    ("CA-AB", 2026, "20000.00", "103.49", "1411.24"),
-    ("CA-AB", 2026, "70000.00", "10812.98", "15892.80"),
-    ("CA-AB", 2026, "200000.00", "56376.82", "62146.34"),
-    ("CA-BC", 2025, "20000.00", "158.09", "1467.84"),
-    ("CA-BC", 2025, "70000.00", "10748.03", "15782.26"),
-    ("CA-BC", 2025, "200000.00", "58698.50", "64206.08"),
-    ("CA-BC", 2026, "20000.00", "103.49", "1411.24"),
-    ("CA-BC", 2026, "70000.00", "10572.03", "15651.85"),
-    ("CA-BC", 2026, "200000.00", "57956.15", "63725.67"),
-    ("CA-MB", 2025, "20000.00", "442.17", "1751.92"),
-    ("CA-MB", 2025, "70000.00", "13333.23", "18367.46"),
-    ("CA-MB", 2025, "200000.00", "66331.29", "71838.87"),
-    ("CA-MB", 2026, "20000.00", "387.79", "1695.54"),
-    ("CA-MB", 2026, "70000.00", "13020.86", "18100.68"),
-    ("CA-MB", 2026, "200000.00", "65708.31", "71477.83"),
-    ("CA-SK", 2025, "20000.00", "158.09", "1467.84"),
-    ("CA-SK", 2025, "70000.00", "12677.94", "17712.17"),
-    ("CA-SK", 2025, "200000.00", "61675.67", "67183.25"),
-    ("CA-SK", 2026, "20000.00", "103.49", "1411.24"),
-    ("CA-SK", 2026, "70000.00", "12250.87", "17330.69"),
-    ("CA-SK", 2026, "200000.00", "60878.92", "66648.44"),
-    ("CA-NL", 2025, "20000.00", "158.09", "1467.84"),
-    ("CA-NL", 2025, "70000.00", "13733.13", "18767.36"),
-    ("CA-NL", 2025, "200000.00", "66660.07", "72167.65"),
-    ("CA-NL", 2026, "20000.00", "103.49", "1411.24"),
-    ("CA-NL", 2026, "70000.00", "13217.18", "18297.00"),
-    ("CA-NL", 2026, "200000.00", "65789.37", "71558.89"),
-]
-
-
-@pytest.mark.parametrize(("code", "year", "salary", "income_tax", "total"), INCOME_TAX)
-def test_income_tax_is_the_tax_part_of_the_total(
-    client: TestClient, code: str, year: int, salary: str, income_tax: str, total: str
-) -> None:
-    body = compute(client, jurisdiction_code=code, year=year, salary=salary).json()
-    assert body["income_tax"] == income_tax
-    assert body["total_deductions"] == total
 
 
 @pytest.mark.parametrize("year", [2025, 2026])
