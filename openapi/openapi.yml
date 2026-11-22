@@ -141,7 +141,7 @@ components:
         salary: {type: string, example: "70000.00"}
         total_deductions:
           type: string
-          description: Contributions and tax together.
+          description: Contributions and income tax together. Income tax is the tax alone (T1 line 43500, total payable); credits that only arrive when the return is filed do not lower it.
           example: "16531.32"
         take_home:
           type: string

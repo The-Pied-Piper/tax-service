@@ -71,9 +71,9 @@ class FormTrace:
 class DeductionFigure:
     """One kind of deduction (for example `ei`) and what the salary pays of it.
 
-    An amount can be negative: `income_tax` is the balance owing after refundable credits and
-    benefits, so at a low salary the credits can exceed the tax. Take-home pay is then more than
-    the salary; the total deductions are the plain sum of the figures.
+    `income_tax` is the tax alone (T1 line 43500, total payable), so no amount is negative: the
+    refundable credits that only arrive when the return is filed do not reduce it. The total
+    deductions are the plain sum of the figures.
     """
 
     item: str
