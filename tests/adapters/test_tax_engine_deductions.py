@@ -263,12 +263,32 @@ async def test_a_rate_without_a_unit_is_the_ports_error(rate: str) -> None:
         await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad", rate: None})
 
 
-# Alberta's income_tax is the deduction item for T1 line 167 (negative when a refund is due).
+# Ontario's income_tax is T1 line 43500 (total payable, before line 48200 credits).
+# The Canada workers benefit (line 45300) and the EI overpayment (line 45000) are part of those
+# credits, so they do not lower it.
+ONTARIO_INCOME_TAX = [
+    (2025, 20000, "158.09"),
+    (2025, 70000, "11497.09"),
+    (2025, 2010, "0.00"),
+]
+
+
+@pytest.mark.parametrize(("year", "salary", "income_tax"), ONTARIO_INCOME_TAX)
+async def test_ontario_income_tax_with_the_real_engine(
+    year: int, salary: int, income_tax: str
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year, salary=salary)
+    figures = {f.item: f.amount for f in deductions.figures}
+    assert figures["income_tax"] == Decimal(income_tax)
+    assert deductions.unit == CAD
+
+
+# Alberta's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 ALBERTA_INCOME_TAX = [
-    (2025, 20000, "-1591.91"),
+    (2025, 20000, "158.09"),
     (2025, 70000, "11183.76"),
     (2025, 200000, "57148.10"),
-    (2026, 20000, "-1681.51"),
+    (2026, 20000, "103.49"),
     (2026, 70000, "10812.98"),
     (2026, 200000, "56376.82"),
 ]
@@ -304,12 +324,12 @@ async def test_alberta_rates_are_read_from_the_alberta_form(
     assert "ca-ab/return" in {form.form for form in deductions.trace}
 
 
-# British Columbia's income_tax is the deduction item for T1 line 167 (negative for a refund).
+# British Columbia's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 BRITISH_COLUMBIA_INCOME_TAX = [
-    (2025, 20000, "-1474.91"),
+    (2025, 20000, "158.09"),
     (2025, 70000, "10748.03"),
     (2025, 275000, "94556.99"),
-    (2026, 20000, "-1561.51"),
+    (2026, 20000, "103.49"),
     (2026, 70000, "10572.03"),
     (2026, 275000, "93405.74"),
 ]
@@ -345,12 +365,12 @@ async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
     assert "ca-bc/return" in {form.form for form in deductions.trace}
 
 
-# Manitoba's income_tax is the deduction item for T1 line 167 (negative for a refund).
+# Manitoba's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 MANITOBA_INCOME_TAX = [
-    (2025, 20000, "-1190.83"),
+    (2025, 20000, "442.17"),
     (2025, 70000, "13333.23"),
     (2025, 275000, "102748.13"),
-    (2026, 20000, "-1277.21"),
+    (2026, 20000, "387.79"),
     (2026, 70000, "13020.86"),
     (2026, 275000, "101929.24"),
 ]
@@ -386,12 +406,12 @@ async def test_manitoba_rates_are_read_from_the_manitoba_form(
     assert "ca-mb/return" in {form.form for form in deductions.trace}
 
 
-# Saskatchewan's income_tax is the deduction item for T1 line 167 (negative for a refund).
+# Saskatchewan's income_tax is T1 line 43500 (total payable, before line 48200 credits).
 SASKATCHEWAN_INCOME_TAX = [
-    (2025, 20000, "-1474.91"),
+    (2025, 20000, "158.09"),
     (2025, 70000, "12677.94"),
     (2025, 275000, "95287.57"),
-    (2026, 20000, "-1561.51"),
+    (2026, 20000, "103.49"),
     (2026, 70000, "12250.87"),
     (2026, 275000, "94295.37"),
 ]
@@ -427,12 +447,12 @@ async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
     assert "ca-sk/return" in {form.form for form in deductions.trace}
 
 
-# Newfoundland and Labrador's income_tax is T1 line 167 (negative for a refund).
+# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before line 48200).
 NEWFOUNDLAND_INCOME_TAX = [
-    (2025, 20000, "-1474.91"),
+    (2025, 20000, "158.09"),
     (2025, 70000, "13733.13"),
     (2025, 275000, "103807.30"),
-    (2026, 20000, "-1561.51"),
+    (2026, 20000, "103.49"),
     (2026, 70000, "13217.18"),
     (2026, 275000, "102691.47"),
 ]
@@ -494,8 +514,8 @@ async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engin
     ("salary", "take_home"),
     [
         (1999, "1999.00"),
-        (2000, "2000.00"),
-        (2010, "2000.00"),
+        (2000, "1967.20"),
+        (2010, "1977.04"),
         (2033, "1999.66"),
         (2034, "2000.64"),
         (70000, None),
@@ -518,17 +538,18 @@ async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
 @pytest.mark.parametrize(
     ("salary", "take_home"),
     [
-        (1999, "2074.00"),
-        (2000, "2075.00"),
-        (2010, "2075.00"),
-        (2033, "2074.66"),
-        (2034, "2075.64"),
+        (1999, "1999.00"),
+        (2000, "1967.20"),
+        (2010, "1977.04"),
+        (2033, "1999.66"),
+        (2034, "2000.64"),
     ],
 )
 async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
     salary: int, take_home: str
 ) -> None:
-    # The same as Ontario's and Alberta's plus the $75.00 BC sales tax credit (BC479), refundable.
+    # The same as Ontario's: the BC sales tax credit (BC479, line 47900) is part of
+    # the total credits of line 48200, which are not taken off.
     deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
@@ -537,18 +558,18 @@ async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
 @pytest.mark.parametrize(
     ("salary", "take_home"),
     [
-        (1999, "2174.01"),
-        (2000, "2175.00"),
-        (2010, "2174.90"),
-        (2033, "2174.33"),
-        (2034, "2175.30"),
+        (1999, "1999.00"),
+        (2000, "1967.20"),
+        (2010, "1977.04"),
+        (2033, "1999.66"),
+        (2034, "2000.64"),
     ],
 )
 async def test_manitoba_take_home_near_the_t2204_refund_threshold(
     salary: int, take_home: str
 ) -> None:
-    # The same as Ontario's and Alberta's plus the Manitoba personal tax credit (MB479),
-    # refundable: $195.00 less 1% of net income.
+    # The same as Ontario's: the Manitoba personal tax credit (MB479, line 47900) is part of the
+    # total credits of line 48200, which are not taken off.
     deductions = await calculate(TaxEngineDeductions(), code="CA-MB", salary=salary)
     figures = {f.item: f.amount for f in deductions.figures}
     assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
