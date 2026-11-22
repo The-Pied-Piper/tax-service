@@ -447,7 +447,7 @@ async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
     assert "ca-sk/return" in {form.form for form in deductions.trace}
 
 
-# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before line 48200 credits).
+# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before line 48200).
 NEWFOUNDLAND_INCOME_TAX = [
     (2025, 20000, "158.09"),
     (2025, 70000, "13733.13"),
