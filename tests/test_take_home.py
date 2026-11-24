@@ -60,7 +60,7 @@ def test_70000_in_ontario_2025(client: TestClient) -> None:
         "provisional": False,
         "unit": CAD,
         "average_income_tax_rate": {"amount": "0.2362", "unit": PERCENT},
-        "marginal_income_tax_rate": {"amount": "0.34335775", "unit": PERCENT},
+        "marginal_income_tax_rate": {"amount": "0.3434", "unit": PERCENT},
     }
 
 
@@ -70,12 +70,12 @@ def test_70000_in_ontario_2026_is_provisional(client: TestClient) -> None:
     assert body["provisional"] is True
     assert body["unit"] == CAD
     assert body["average_income_tax_rate"] == {"amount": "0.2316", "unit": PERCENT}
-    assert body["marginal_income_tax_rate"] == {"amount": "0.34360525", "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": "0.3436", "unit": PERCENT}
 
 
 @pytest.mark.parametrize(
     ("year", "average", "marginal"),
-    [(2025, "0.2362", "0.34335775"), (2026, "0.2316", "0.34360525")],
+    [(2025, "0.2362", "0.3434"), (2026, "0.2316", "0.3436")],
 )
 def test_the_rates_are_also_in_the_response_with_the_trace(
     client: TestClient, year: int, average: str, marginal: str
