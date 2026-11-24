@@ -236,7 +236,7 @@ def test_jurisdictions_list(client: TestClient) -> None:
             },
             {
                 "code": "CA-QC",
-                "name": "Quebec",
+                "name": "Québec",
                 "years": [
                     {"year": 2025, "provisional": False},
                     {"year": 2026, "provisional": True},
