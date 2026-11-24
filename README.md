@@ -26,7 +26,7 @@ The answer (the `unit` objects, which describe how to format each amount, are le
   "income_tax": "11497.09",
   "take_home": "53468.68",
   "average_income_tax_rate": { "amount": "0.2362" },
-  "marginal_income_tax_rate": { "amount": "0.34335775" },
+  "marginal_income_tax_rate": { "amount": "0.3434" },
   "provisional": false
 }
 ```
