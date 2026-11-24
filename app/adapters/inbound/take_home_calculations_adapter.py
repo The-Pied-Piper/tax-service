@@ -63,7 +63,7 @@ def _form_trace(trace: DomainFormTrace) -> FormTrace:
                 label=line.label,
                 name=line.name,
                 reference=line.reference,
-                amount=str(line.amount),
+                amount=None if line.amount is None else str(line.amount),
                 text=line.text,
                 unit=None if line.unit is None else _unit(line.unit),
             )

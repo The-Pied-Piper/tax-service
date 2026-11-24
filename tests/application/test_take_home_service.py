@@ -4,18 +4,15 @@ from decimal import Decimal
 
 import pytest
 
-from app.application.ports.deductions import DeductionsUnavailableError
 from app.application.services.take_home_calculations_service import TakeHomeCalculationsService
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
-    DeductionFigure,
     Deductions,
     FormTrace,
     Rate,
     TakeHomeResult,
     TraceEntry,
     Unit,
-    find_jurisdiction,
 )
 
 CAD = Unit("ca/cad", "before", "CA$", "CA$", False, False)
@@ -29,20 +26,16 @@ TRACE = (
         (TraceEntry("ex_line", "Example line", "1", Decimal("1.00"), "one", unit=CAD),),
     ),
 )
-# What a $70,000 salary pays of each item in CA-ON 2025; they add up to 16531.32.
-FIGURES = {
-    "cpp_base": "3291.75",
-    "cpp_enhanced": "665.00",
-    "cpp2": "0.00",
-    "ei": "1077.48",
-    "income_tax": "11497.09",
-}
+# What a $70,000 salary pays in CA-ON 2025: income tax 11497.09, the contributions the rest.
+INCOME_TAX = "11497.09"
+TOTAL = "16531.32"
 
 
 class FakeDeductions:
-    def __init__(self, figures: list[tuple[str, str]] | None = None) -> None:
-        self.figures = list(FIGURES.items()) if figures is None else figures
-        self.calls: list[tuple[str, int, Decimal, str, tuple[str, ...], bool]] = []
+    def __init__(self, total: str = TOTAL, income_tax: str = INCOME_TAX) -> None:
+        self.total = Decimal(total)
+        self.income_tax = Decimal(income_tax)
+        self.calls: list[tuple[str, int, Decimal, str, bool]] = []
 
     async def calculate(
         self,
@@ -50,13 +43,12 @@ class FakeDeductions:
         year: int,
         salary: Decimal,
         language_code: str,
-        items: tuple[str, ...],
         with_trace: bool,
     ) -> Deductions:
-        self.calls.append((jurisdiction_code, year, salary, language_code, items, with_trace))
-        figures = tuple(DeductionFigure(item, Decimal(amount)) for item, amount in self.figures)
+        self.calls.append((jurisdiction_code, year, salary, language_code, with_trace))
         return Deductions(
-            figures,
+            self.total,
+            self.income_tax,
             TRACE if with_trace else (),
             unit=CAD,
             average_income_tax_rate=AVERAGE,
@@ -76,7 +68,7 @@ async def compute(
     return await service.compute_take_home_calculation(code, year, Decimal(salary), language, trace)
 
 
-async def test_take_home_is_salary_minus_the_sum_of_the_items() -> None:
+async def test_take_home_is_salary_minus_the_total_deductions() -> None:
     result = await compute(FakeDeductions())
     assert (result.salary, result.total_deductions, result.take_home) == (
         Decimal("70000.00"),
@@ -85,39 +77,10 @@ async def test_take_home_is_salary_minus_the_sum_of_the_items() -> None:
     )
 
 
-async def test_income_tax_is_the_income_tax_item_on_its_own() -> None:
-    result = await compute(FakeDeductions(list(reversed(FIGURES.items()))))
+async def test_income_tax_is_the_tax_part_of_the_total_on_its_own() -> None:
+    result = await compute(FakeDeductions())
     assert result.income_tax == Decimal("11497.09")
     assert result.total_deductions - result.income_tax == Decimal("5034.23")
-
-
-async def test_it_asks_for_the_items_the_jurisdiction_declares() -> None:
-    fake = FakeDeductions()
-    await compute(fake)
-    jurisdiction = find_jurisdiction("CA-ON")
-    assert jurisdiction is not None
-    assert fake.calls[0][4] == jurisdiction.deduction_items
-
-
-@pytest.mark.parametrize(
-    "answer",
-    [
-        [("ei", "1077.48")],  # items missing
-        [*FIGURES.items(), ("extra", "1.00")],  # an item nobody asked for
-        [*FIGURES.items(), ("ei", "1077.48")],  # an item twice
-        [(item, "1.00") for item in [*FIGURES][:-1]] + [("ei", "1.00")],  # one twice, one gone
-    ],
-)
-async def test_a_calculator_that_answers_for_other_items_is_an_error(
-    answer: list[tuple[str, str]],
-) -> None:
-    with pytest.raises(DeductionsUnavailableError):
-        await compute(FakeDeductions(answer))
-
-
-async def test_the_items_may_come_back_in_any_order() -> None:
-    result = await compute(FakeDeductions(list(reversed(FIGURES.items()))))
-    assert result.total_deductions == Decimal("16531.32")
 
 
 async def test_provisional_follows_the_supported_year() -> None:
@@ -129,7 +92,7 @@ async def test_trace_only_when_asked() -> None:
     fake = FakeDeductions()
     assert (await compute(fake, trace=False)).trace is None
     assert (await compute(fake, trace=True)).trace == TRACE
-    assert [call[5] for call in fake.calls] == [False, True]
+    assert [call[4] for call in fake.calls] == [False, True]
 
 
 @pytest.mark.parametrize(
@@ -166,19 +129,11 @@ async def test_the_rates_are_passed_through_and_are_not_deductions() -> None:
     assert result.take_home == Decimal("53468.68")
 
 
-async def test_a_negative_figure_is_summed_and_take_home_can_exceed_the_salary() -> None:
-    # Whatever a port returns, a negative figure is summed like any other (made-up split).
-    fake = FakeDeductions(
-        [
-            ("cpp_base", "1000.00"),
-            ("cpp_enhanced", "100.00"),
-            ("cpp2", "0.00"),
-            ("ei", "300.00"),
-            ("income_tax", "-1565.16"),
-        ]
-    )
-    result = await compute(fake, salary="20000")
+async def test_a_negative_total_means_take_home_can_exceed_the_salary() -> None:
+    # Whatever a port returns is taken off like any other total (made-up split).
+    result = await compute(FakeDeductions("-165.16", "-1565.16"), salary="20000")
     assert (result.total_deductions, result.take_home) == (Decimal("-165.16"), Decimal("20165.16"))
+    assert result.income_tax == Decimal("-1565.16")
 
 
 async def test_an_unsupported_language_is_refused_naming_the_field() -> None:

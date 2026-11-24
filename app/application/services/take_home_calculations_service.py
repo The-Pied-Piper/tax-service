@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from app.application.ports.deductions import DeductionsCalculator, DeductionsUnavailableError
+from app.application.ports.deductions import DeductionsCalculator
 from app.domain.errors import InvalidArgumentError
 from app.domain.take_home import (
     SupportedJurisdiction,
@@ -39,18 +39,12 @@ class TakeHomeCalculationsService:
             year,
             salary,
             language,
-            jurisdiction.deduction_items,
             include_trace,
         )
-        if sorted(f.item for f in deductions.figures) != sorted(jurisdiction.deduction_items):
-            raise DeductionsUnavailableError(f"{jurisdiction_code} {year}: wrong deduction items")
         return TakeHomeResult.of(
             salary,
-            deductions.figures,
+            deductions,
             supported_year.provisional,
-            deductions.unit,
-            deductions.average_income_tax_rate,
-            deductions.marginal_income_tax_rate,
             deductions.trace if include_trace else None,
         )
 

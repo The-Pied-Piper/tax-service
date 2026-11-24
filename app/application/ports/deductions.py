@@ -19,12 +19,11 @@ class DeductionsCalculator(Protocol):
         year: int,
         salary: Decimal,
         language_code: str,
-        items: tuple[str, ...],
         with_trace: bool,
     ) -> Deductions:
-        """What `salary` pays of each of `items`, with the explaining trace (empty unless
-        `with_trace`). Returns exactly one figure for each requested item.
+        """What `salary` pays in contributions and income tax, with the explaining trace (empty
+        unless `with_trace`) and the average and marginal rates, from one calculation.
 
-        Raises DeductionsUnavailableError when an item or the language is unknown to it or the
-        calculation itself fails.
+        Raises DeductionsUnavailableError when the language is unknown to it or the calculation
+        itself fails.
         """

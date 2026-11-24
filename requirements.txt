@@ -99,7 +99,7 @@ starlette==1.10.0
     # via connexion
 swagger-ui-bundle==1.1.0
     # via connexion
-tax-engine==0.4.1
+tax-engine==0.5.0
     # via -r requirements.in
 typing-extensions==4.16.0
     # via
