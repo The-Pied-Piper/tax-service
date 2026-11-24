@@ -64,12 +64,13 @@ async def test_the_average_rate_is_the_total_deductions_over_the_salary(
 # $100 more salary, away from any band edge.
 @pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
 @pytest.mark.parametrize("year", [2025, 2026])
+@pytest.mark.parametrize("salary", [30000, 70000, 150000])
 async def test_the_marginal_rate_is_the_change_of_the_total_per_extra_dollar(
-    code: str, year: int
+    code: str, year: int, salary: int
 ) -> None:
     calculator = TaxEngineDeductions()
-    low = await calculate(calculator, year, code=code, salary=70000)
-    high = await calculate(calculator, year, code=code, salary=70100)
+    low = await calculate(calculator, year, code=code, salary=salary)
+    high = await calculate(calculator, year, code=code, salary=salary + 100)
     change = (high.total_deductions - low.total_deductions) / 100
     assert abs(low.marginal_income_tax_rate.amount - change) <= Decimal("0.005")
 

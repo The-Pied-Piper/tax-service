@@ -69,8 +69,9 @@ class FormTrace:
 
 @dataclass(frozen=True)
 class Rate:
-    """A rate of income tax and the unit it is in. `amount` is the figure as the calculator gives
-    it (a fraction, not a percentage); `unit` says how to write it."""
+    """A rate on the take-home basis (income tax, CPP, CPP2 and EI; no paid credits) and its unit.
+    `amount` is the figure as the calculator gives it (a fraction, not a percentage); `unit` says
+    how to write it."""
 
     amount: Decimal
     unit: Unit
