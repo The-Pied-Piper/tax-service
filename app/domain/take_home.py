@@ -69,7 +69,8 @@ class FormTrace:
 
 @dataclass(frozen=True)
 class Rate:
-    """A rate on the take-home basis (income tax, CPP, CPP2 and EI; no paid credits) and its unit.
+    """A rate on the take-home basis (income tax and the pension plan, EI and, in Québec, QPIP and
+    the drug premium; no paid credits) and its unit.
     `amount` is the figure as the calculator gives it (a fraction, not a percentage); `unit` says
     how to write it."""
 
@@ -188,6 +189,12 @@ SUPPORTED_JURISDICTIONS = (
     SupportedJurisdiction(
         "CA-NL",
         "Newfoundland and Labrador",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        languages=("en",),
+    ),
+    SupportedJurisdiction(
+        "CA-QC",
+        "Québec",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
         languages=("en",),
     ),

@@ -120,7 +120,7 @@ class Error(BaseModel):
     ]
     title: Annotated[str, Field(examples=["Unsupported jurisdiction"])]
     status: Annotated[int, Field(examples=[400], ge=100, le=599)]
-    detail: Annotated[str, Field(examples=["jurisdiction_code CA-QC is not supported yet"])]
+    detail: Annotated[str, Field(examples=["jurisdiction_code CA-YT is not supported yet"])]
     field: Annotated[
         str | None,
         Field(
@@ -131,7 +131,7 @@ class Error(BaseModel):
 
 class Rate(BaseModel):
     """
-    A rate on the take-home basis: it counts income tax (tax cuts included), Canada Pension Plan and Employment Insurance, and leaves out credits paid at filing. It is a fraction written as a decimal string and the unit that says how to show it; when the unit is `as_percentage`, show the amount times 100 (0.2362 is 23.62%).
+    A rate on the take-home basis: it counts income tax (tax cuts included), the pension plan (Canada Pension Plan, or Québec Pension Plan in Québec), Employment Insurance and, in Québec, Québec Parental Insurance Plan premiums and the Québec drug insurance premium, and leaves out credits paid at filing. It is a fraction written as a decimal string and the unit that says how to show it; when the unit is `as_percentage`, show the amount times 100 (0.2362 is 23.62%).
     """
 
     model_config = ConfigDict(
