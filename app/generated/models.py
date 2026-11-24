@@ -131,13 +131,13 @@ class Error(BaseModel):
 
 class Rate(BaseModel):
     """
-    A rate of income tax, as a fraction written as a decimal string and the unit that says how to show it; when the unit is `as_percentage`, show the amount times 100 (0.2965 is 29.65%).
+    A rate on the take-home basis: it counts income tax (tax cuts included), Canada Pension Plan and Employment Insurance, and leaves out credits paid at filing. It is a fraction written as a decimal string and the unit that says how to show it; when the unit is `as_percentage`, show the amount times 100 (0.2362 is 23.62%).
     """
 
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    amount: Annotated[str, Field(examples=["0.2965"])]
+    amount: Annotated[str, Field(examples=["0.2362"])]
     unit: Unit
 
 

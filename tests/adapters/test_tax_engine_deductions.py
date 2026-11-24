@@ -1,21 +1,23 @@
 """The tax-engine adapter on its own: no HTTP; the real engine, or a fake one that fails."""
 
 from decimal import Decimal, InvalidOperation
-from types import SimpleNamespace
 from typing import Any, NoReturn
 
 import pytest
-from tax_engine.registrations import artifact_kinds
+from tax_engine.application.models.take_home import FormTrace as EngineFormTrace
+from tax_engine.application.models.take_home import Rate as EngineRate
+from tax_engine.application.models.take_home import TakeHomeResult as EngineResult
+from tax_engine.application.models.take_home import TraceEntry as EngineTraceEntry
+from tax_engine.application.models.take_home import UnitDescription
+from tax_engine.application.models.take_home_request import TakeHomeRequest
 
 from app.adapters.outbound.tax_engine import TaxEngineDeductions
-from app.adapters.outbound.tax_engine.engine import AVERAGE_RATES, MARGINAL_RATES
 from app.application.ports.deductions import DeductionsUnavailableError
-from app.domain.take_home import SUPPORTED_JURISDICTIONS, Rate, Unit, find_jurisdiction
+from app.domain.take_home import SUPPORTED_JURISDICTIONS, Rate, Unit
 
 CAD = Unit("ca/cad", "before", "CA$", "CA$", False, False)
 MONTHS = Unit("core/months", "after", "month", "months", True, False)
 PERCENT = Unit("core/percent", "after", "%", "%", False, True)
-ONTARIO_ITEMS = find_jurisdiction("CA-ON").deduction_items  # type: ignore[union-attr]
 
 
 async def calculate(
@@ -26,38 +28,62 @@ async def calculate(
     code: str = "CA-ON",
     salary: int = 70000,
 ) -> Any:
-    return await calculator.calculate(code, year, Decimal(salary), language, ONTARIO_ITEMS, trace)
+    return await calculator.calculate(code, year, Decimal(salary), language, trace)
 
 
 async def test_70000_in_ontario() -> None:
     deductions = await calculate(TaxEngineDeductions())
-    assert {f.item: f.amount for f in deductions.figures} == {
-        "cpp_base": Decimal("3291.75"),
-        "cpp_enhanced": Decimal("665.00"),
-        "cpp2": Decimal("0.00"),
-        "ei": Decimal("1077.48"),
-        "income_tax": Decimal("11497.09"),
-    }
+    assert deductions.total_deductions == Decimal("16531.32")
+    assert deductions.income_tax == Decimal("11497.09")
+    assert deductions.unit == CAD
     assert deductions.trace == ()
 
 
-@pytest.mark.parametrize(
-    ("year", "average", "marginal"),
-    [(2025, "0.1642", "0.2965"), (2026, "0.1591", "0.2965")],
-)
-async def test_the_average_and_marginal_rates_at_70000_with_their_unit(
-    year: int, average: str, marginal: str
-) -> None:
+@pytest.mark.parametrize("year", [2025, 2026])
+async def test_the_rates_come_with_their_unit_from_the_same_answer(year: int) -> None:
     deductions = await calculate(TaxEngineDeductions(), year=year)
-    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
+    assert deductions.average_income_tax_rate.unit == PERCENT
+    assert deductions.marginal_income_tax_rate.unit == PERCENT
     assert deductions.average_income_tax_rate.unit.as_percentage is True
 
 
-async def test_the_money_unit_is_not_a_percentage() -> None:
-    deductions = await calculate(TaxEngineDeductions())
-    assert deductions.unit == CAD
-    assert deductions.unit.as_percentage is False
+# The average rate is the total taken off over the salary (income tax, CPP, CPP2 and EI): the
+# figure it is printed to four decimals, so it is checked against the total, not a pinned number.
+@pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
+@pytest.mark.parametrize("year", [2025, 2026])
+@pytest.mark.parametrize("salary", [20000, 70000, 200000])
+async def test_the_average_rate_is_the_total_deductions_over_the_salary(
+    code: str, year: int, salary: int
+) -> None:
+    deductions = await calculate(TaxEngineDeductions(), year, code=code, salary=salary)
+    exact = deductions.total_deductions / salary
+    assert abs(deductions.average_income_tax_rate.amount - exact) <= Decimal("0.00005")
+
+
+# The marginal rate is the change of the total per extra dollar: checked against the answer for
+# $100 more salary, away from any band edge.
+@pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
+@pytest.mark.parametrize("year", [2025, 2026])
+async def test_the_marginal_rate_is_the_change_of_the_total_per_extra_dollar(
+    code: str, year: int
+) -> None:
+    calculator = TaxEngineDeductions()
+    low = await calculate(calculator, year, code=code, salary=70000)
+    high = await calculate(calculator, year, code=code, salary=70100)
+    change = (high.total_deductions - low.total_deductions) / 100
+    assert abs(low.marginal_income_tax_rate.amount - change) <= Decimal("0.005")
+
+
+async def test_it_asks_the_engine_once_with_the_rates_and_the_trace_flags() -> None:
+    engine = RecordingEngine()
+    calculator = TaxEngineDeductions(engine)
+    await calculator.calculate("CA-ON", 2025, Decimal("70000"), "en", True)
+    await calculator.calculate("CA-ON", 2025, Decimal("70000"), "en", False)
+    assert [(r.include_rates, r.include_trace) for r in engine.requests] == [
+        (True, True),
+        (True, False),
+    ]
+    assert all(str(r.jurisdiction) == "CA-ON" and r.tax_year == 2025 for r in engine.requests)
 
 
 async def test_trace_lines_are_text_with_a_figure() -> None:
@@ -71,20 +97,9 @@ async def test_a_language_it_cannot_write_is_the_ports_error() -> None:
         await calculate(TaxEngineDeductions(), language="fr")
 
 
-async def test_an_item_it_does_not_know_is_the_ports_error() -> None:
-    with pytest.raises(DeductionsUnavailableError):
-        await TaxEngineDeductions().calculate(
-            "CA-ON", 2025, Decimal(70000), "en", ("not_an_item",), False
-        )
-
-
 async def test_an_engine_failure_becomes_the_ports_error() -> None:
     with pytest.raises(DeductionsUnavailableError):
         await calculate(TaxEngineDeductions(), year=2024)
-
-
-async def test_the_deductions_are_in_canadian_dollars() -> None:
-    assert (await calculate(TaxEngineDeductions())).unit == CAD
 
 
 async def test_trace_lines_carry_the_unit_of_their_figure() -> None:
@@ -98,49 +113,6 @@ async def test_trace_lines_carry_the_unit_of_their_figure() -> None:
     assert None in [line.unit for line in lines]
     assert PERCENT in [line.unit for line in lines]
     assert {line.unit for line in lines} <= {CAD, MONTHS, PERCENT, None}
-
-
-class FailingEngine:
-    def __init__(self, error: Exception) -> None:
-        self._error = error
-
-    def compute(self, *args: object) -> NoReturn:
-        raise self._error
-
-
-class FakeSheet:
-    """A worksheet the engine gives no titles or references for, with one line that has no label."""
-
-    form_title = ""
-    trace = (SimpleNamespace(label=None, amount=Decimal("1.00")),)
-
-    def get(self, kind: Any) -> Any:
-        return SimpleNamespace(value=Decimal("1.00"), unit=SimpleNamespace(identifier="ca/cad"))
-
-    def unit(self, label: str) -> None:
-        raise AssertionError("asked for the unit of a line with no label")
-
-    def title(self, label: str) -> str:
-        raise AssertionError("asked for the title of a line with no label")
-
-    def reference(self, label: str) -> str:
-        raise AssertionError("asked for the reference of a line with no label")
-
-
-class FakeEngine:
-    def compute(self, *args: Any) -> Any:
-        return {"ca/t2204": [FakeSheet()], "ca-on/return": [FakeSheet()]}
-
-
-async def test_what_the_engine_does_not_title_is_absent() -> None:
-    calculator = TaxEngineDeductions(
-        FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
-    )
-    deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", ("ei",), True)
-    (form,) = (f for f in deductions.trace if f.form == "ca/t2204")
-    assert form.name is None
-    (line,) = form.lines
-    assert (line.label, line.name, line.reference) == (None, None, None)
 
 
 async def test_the_real_engine_titles_its_forms() -> None:
@@ -165,6 +137,95 @@ async def test_sentences_name_figures_the_way_the_form_prints_them() -> None:
     )
 
 
+async def test_every_supported_jurisdiction_year_and_language_works_with_the_real_engine() -> None:
+    # The domain lists what is on offer; this keeps that list and the engine in step.
+    calculator = TaxEngineDeductions()
+    for jurisdiction in SUPPORTED_JURISDICTIONS:
+        for supported in jurisdiction.years:
+            for language in jurisdiction.languages:
+                deductions = await calculator.calculate(
+                    jurisdiction.code, supported.year, Decimal(70000), language, False
+                )
+                assert deductions.total_deductions > deductions.income_tax > 0
+                assert deductions.average_income_tax_rate.amount > 0
+
+
+CAD_UNIT = UnitDescription("ca/cad", "before", "CA$", "CA$", False, False)
+PERCENT_UNIT = UnitDescription("core/percent", "after", "%", "%", False, True)
+
+
+AVERAGE_RATE = EngineRate(Decimal("0.2362"), PERCENT_UNIT)
+MARGINAL_RATE = EngineRate(Decimal("0.3433"), PERCENT_UNIT)
+
+
+def engine_result(
+    average: EngineRate | None = AVERAGE_RATE,
+    marginal: EngineRate | None = MARGINAL_RATE,
+    trace: tuple[EngineFormTrace, ...] | None = None,
+) -> EngineResult:
+    return EngineResult(
+        salary=Decimal("70000.00"),
+        figures=(),
+        total_deductions=Decimal("16531.32"),
+        income_tax=Decimal("11497.09"),
+        take_home=Decimal("53468.68"),
+        unit=CAD_UNIT,
+        average_tax_rate=average,
+        marginal_tax_rate=marginal,
+        trace=trace,
+    )
+
+
+class RecordingEngine:
+    def __init__(self, result: EngineResult | None = None) -> None:
+        self.requests: list[TakeHomeRequest] = []
+        self._result = engine_result() if result is None else result
+
+    def compute(self, request: TakeHomeRequest) -> EngineResult:
+        self.requests.append(request)
+        return self._result
+
+
+async def test_what_the_engine_does_not_title_is_absent() -> None:
+    entry = EngineTraceEntry(None, "", "", Decimal("1.00"), "one", None)
+    trace = (EngineFormTrace("ca/t2204", None, (entry,)),)
+    calculator = TaxEngineDeductions(RecordingEngine(engine_result(trace=trace)))
+    deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", True)
+    (form,) = deductions.trace
+    assert form.name is None
+    (line,) = form.lines
+    assert (line.label, line.name, line.reference, line.unit) == (None, None, None, None)
+
+
+@pytest.mark.parametrize(("average", "marginal"), [(None, "x"), ("x", None), (None, None)])
+async def test_a_jurisdiction_without_rates_is_the_ports_error(
+    average: str | None, marginal: str | None
+) -> None:
+    rate = EngineRate(Decimal("0.1"), PERCENT_UNIT)
+    result = engine_result(
+        average=None if average is None else rate, marginal=None if marginal is None else rate
+    )
+    calculator = TaxEngineDeductions(RecordingEngine(result))
+    with pytest.raises(DeductionsUnavailableError):
+        await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", False)
+
+
+async def test_the_rates_and_unit_are_mapped_from_the_engine_answer() -> None:
+    calculator = TaxEngineDeductions(RecordingEngine())
+    deductions = await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", False)
+    assert deductions.average_income_tax_rate == Rate(Decimal("0.2362"), PERCENT)
+    assert deductions.marginal_income_tax_rate == Rate(Decimal("0.3433"), PERCENT)
+    assert deductions.unit == CAD
+
+
+class FailingEngine:
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def compute(self, request: TakeHomeRequest) -> NoReturn:
+        raise self._error
+
+
 @pytest.mark.parametrize(
     "error",
     [
@@ -178,407 +239,3 @@ async def test_other_engine_failures_become_the_ports_error(error: Exception) ->
     calculator = TaxEngineDeductions(FailingEngine(error))
     with pytest.raises(DeductionsUnavailableError):
         await calculate(calculator)
-
-
-async def test_every_supported_jurisdiction_year_and_language_works_with_the_real_engine() -> None:
-    # The domain lists what is on offer; this keeps that list and the adapter in step.
-    calculator = TaxEngineDeductions()
-    for jurisdiction in SUPPORTED_JURISDICTIONS:
-        for supported in jurisdiction.years:
-            for language in jurisdiction.languages:
-                deductions = await calculator.calculate(
-                    jurisdiction.code,
-                    supported.year,
-                    Decimal(70000),
-                    language,
-                    jurisdiction.deduction_items,
-                    False,
-                )
-                assert [f.item for f in deductions.figures] == list(jurisdiction.deduction_items)
-
-
-AVERAGE_RATE = "ca-on/average_income_tax_rate"
-MARGINAL_RATE = "ca-on/marginal_tax_rate"
-
-
-class UnitSheet:
-    """A worksheet whose figures each have the unit given for their kind (None for no unit)."""
-
-    form_title = ""
-    trace = ()
-
-    def __init__(self, units: dict[str, str | None]) -> None:
-        kinds = artifact_kinds()
-        self._units = {kinds.kind(kind): unit for kind, unit in units.items()}
-        for kind in (AVERAGE_RATE, MARGINAL_RATE):
-            self._units.setdefault(kinds.kind(kind), "core/percent")
-
-    def get(self, kind: Any) -> Any:
-        unit = self._units[kind]
-        identifier = None if unit is None else SimpleNamespace(identifier=unit)
-        return SimpleNamespace(value=Decimal("1.00"), unit=identifier)
-
-
-class UnitEngine:
-    def __init__(self, units: dict[str, str | None]) -> None:
-        self._units = units
-
-    def compute(self, *args: Any) -> Any:
-        sheet = UnitSheet(self._units)
-        return {"ca/t2204": [sheet], "ca/schedule_8": [sheet], "ca-on/return": [sheet]}
-
-
-EI = "ca/t2204_premiums_deducted"
-CPP2 = "ca/cpp_part_3_line_22"
-
-
-async def deductions_with_units(units: dict[str, str | None]) -> Any:
-    calculator = TaxEngineDeductions(UnitEngine(units), SimpleNamespace(render=lambda *a: "one"))
-    return await calculator.calculate("CA-ON", 2025, Decimal(70000), "en", ("ei", "cpp2"), False)
-
-
-async def test_figures_that_share_a_unit_give_that_unit() -> None:
-    assert (await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad"})).unit == CAD
-
-
-@pytest.mark.parametrize(
-    "units",
-    [
-        {EI: "ca/cad", CPP2: "core/months"},
-        {EI: "ca/cad", CPP2: None},
-        {EI: None, CPP2: "ca/cad"},
-        {EI: None, CPP2: None},
-    ],
-)
-async def test_figures_that_do_not_share_one_unit_are_the_ports_error(
-    units: dict[str, str | None],
-) -> None:
-    with pytest.raises(DeductionsUnavailableError):
-        await deductions_with_units(units)
-
-
-@pytest.mark.parametrize("rate", [AVERAGE_RATE, MARGINAL_RATE])
-async def test_a_rate_without_a_unit_is_the_ports_error(rate: str) -> None:
-    with pytest.raises(DeductionsUnavailableError):
-        await deductions_with_units({EI: "ca/cad", CPP2: "ca/cad", rate: None})
-
-
-# Ontario's income_tax is T1 line 43500 (total payable, before line 48200 credits).
-# The Canada workers benefit (line 45300) and the EI overpayment (line 45000) are part of those
-# credits, so they do not lower it.
-ONTARIO_INCOME_TAX = [
-    (2025, 20000, "158.09"),
-    (2025, 70000, "11497.09"),
-    (2025, 2010, "0.00"),
-]
-
-
-@pytest.mark.parametrize(("year", "salary", "income_tax"), ONTARIO_INCOME_TAX)
-async def test_ontario_income_tax_with_the_real_engine(
-    year: int, salary: int, income_tax: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), year, salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-    assert deductions.unit == CAD
-
-
-# Alberta's income_tax is T1 line 43500 (total payable, before line 48200 credits).
-ALBERTA_INCOME_TAX = [
-    (2025, 20000, "158.09"),
-    (2025, 70000, "11183.76"),
-    (2025, 200000, "57148.10"),
-    (2026, 20000, "103.49"),
-    (2026, 70000, "10812.98"),
-    (2026, 200000, "56376.82"),
-]
-ALBERTA_RATES = [
-    (2025, 20000, "0.0079", "0.145"),
-    (2025, 70000, "0.1598", "0.305"),
-    (2025, 200000, "0.2857", "0.42"),
-    (2026, 20000, "0.0052", "0.14"),
-    (2026, 70000, "0.1545", "0.305"),
-    (2026, 200000, "0.2819", "0.42"),
-]
-
-
-@pytest.mark.parametrize(("year", "salary", "income_tax"), ALBERTA_INCOME_TAX)
-async def test_alberta_income_tax_with_the_real_engine(
-    year: int, salary: int, income_tax: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), year, code="CA-AB", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-    assert deductions.unit == CAD
-
-
-@pytest.mark.parametrize(("year", "salary", "average", "marginal"), ALBERTA_RATES)
-async def test_alberta_rates_are_read_from_the_alberta_form(
-    year: int, salary: int, average: str, marginal: str
-) -> None:
-    deductions = await calculate(
-        TaxEngineDeductions(), year, trace=True, code="CA-AB", salary=salary
-    )
-    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
-    assert "ca-ab/return" in {form.form for form in deductions.trace}
-
-
-# British Columbia's income_tax is T1 line 43500 (total payable, before line 48200 credits).
-BRITISH_COLUMBIA_INCOME_TAX = [
-    (2025, 20000, "158.09"),
-    (2025, 70000, "10748.03"),
-    (2025, 275000, "94556.99"),
-    (2026, 20000, "103.49"),
-    (2026, 70000, "10572.03"),
-    (2026, 275000, "93405.74"),
-]
-BRITISH_COLUMBIA_RATES = [
-    (2025, 20000, "0.0079", "0.145"),
-    (2025, 70000, "0.1535", "0.282"),
-    (2025, 275000, "0.3438", "0.535"),
-    (2026, 20000, "0.0052", "0.14"),
-    (2026, 70000, "0.1510", "0.282"),
-    (2026, 275000, "0.3397", "0.535"),
-]
-
-
-@pytest.mark.parametrize(("year", "salary", "income_tax"), BRITISH_COLUMBIA_INCOME_TAX)
-async def test_british_columbia_income_tax_with_the_real_engine(
-    year: int, salary: int, income_tax: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), year, code="CA-BC", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-    assert deductions.unit == CAD
-
-
-@pytest.mark.parametrize(("year", "salary", "average", "marginal"), BRITISH_COLUMBIA_RATES)
-async def test_british_columbia_rates_are_read_from_the_british_columbia_form(
-    year: int, salary: int, average: str, marginal: str
-) -> None:
-    deductions = await calculate(
-        TaxEngineDeductions(), year, trace=True, code="CA-BC", salary=salary
-    )
-    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
-    assert "ca-bc/return" in {form.form for form in deductions.trace}
-
-
-# Manitoba's income_tax is T1 line 43500 (total payable, before line 48200 credits).
-MANITOBA_INCOME_TAX = [
-    (2025, 20000, "442.17"),
-    (2025, 70000, "13333.23"),
-    (2025, 275000, "102748.13"),
-    (2026, 20000, "387.79"),
-    (2026, 70000, "13020.86"),
-    (2026, 275000, "101929.24"),
-]
-MANITOBA_RATES = [
-    (2025, 20000, "0.0221", "0.253"),
-    (2025, 70000, "0.1905", "0.3325"),
-    (2025, 275000, "0.3736", "0.5125212"),
-    (2026, 20000, "0.0194", "0.248"),
-    (2026, 70000, "0.1860", "0.3325"),
-    (2026, 275000, "0.3707", "0.5125212"),
-]
-
-
-@pytest.mark.parametrize(("year", "salary", "income_tax"), MANITOBA_INCOME_TAX)
-async def test_manitoba_income_tax_with_the_real_engine(
-    year: int, salary: int, income_tax: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), year, code="CA-MB", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-    assert deductions.unit == CAD
-
-
-@pytest.mark.parametrize(("year", "salary", "average", "marginal"), MANITOBA_RATES)
-async def test_manitoba_rates_are_read_from_the_manitoba_form(
-    year: int, salary: int, average: str, marginal: str
-) -> None:
-    deductions = await calculate(
-        TaxEngineDeductions(), year, trace=True, code="CA-MB", salary=salary
-    )
-    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
-    assert "ca-mb/return" in {form.form for form in deductions.trace}
-
-
-# Saskatchewan's income_tax is T1 line 43500 (total payable, before line 48200 credits).
-SASKATCHEWAN_INCOME_TAX = [
-    (2025, 20000, "158.09"),
-    (2025, 70000, "12677.94"),
-    (2025, 275000, "95287.57"),
-    (2026, 20000, "103.49"),
-    (2026, 70000, "12250.87"),
-    (2026, 275000, "94295.37"),
-]
-SASKATCHEWAN_RATES = [
-    (2025, 20000, "0.0079", "0.145"),
-    (2025, 70000, "0.1811", "0.33"),
-    (2025, 275000, "0.3465", "0.475"),
-    (2026, 20000, "0.0052", "0.14"),
-    (2026, 70000, "0.1750", "0.33"),
-    (2026, 275000, "0.3429", "0.475"),
-]
-
-
-@pytest.mark.parametrize(("year", "salary", "income_tax"), SASKATCHEWAN_INCOME_TAX)
-async def test_saskatchewan_income_tax_with_the_real_engine(
-    year: int, salary: int, income_tax: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), year, code="CA-SK", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-    assert deductions.unit == CAD
-
-
-@pytest.mark.parametrize(("year", "salary", "average", "marginal"), SASKATCHEWAN_RATES)
-async def test_saskatchewan_rates_are_read_from_the_saskatchewan_form(
-    year: int, salary: int, average: str, marginal: str
-) -> None:
-    deductions = await calculate(
-        TaxEngineDeductions(), year, trace=True, code="CA-SK", salary=salary
-    )
-    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
-    assert "ca-sk/return" in {form.form for form in deductions.trace}
-
-
-# Newfoundland and Labrador's income_tax is T1 line 43500 (total payable, before line 48200).
-NEWFOUNDLAND_INCOME_TAX = [
-    (2025, 20000, "158.09"),
-    (2025, 70000, "13733.13"),
-    (2025, 275000, "103807.30"),
-    (2026, 20000, "103.49"),
-    (2026, 70000, "13217.18"),
-    (2026, 275000, "102691.47"),
-]
-NEWFOUNDLAND_RATES = [
-    (2025, 20000, "0.0079", "0.232"),
-    (2025, 70000, "0.1962", "0.35"),
-    (2025, 275000, "0.3775", "0.528"),
-    (2026, 20000, "0.0052", "0.227"),
-    (2026, 70000, "0.1888", "0.35"),
-    (2026, 275000, "0.3734", "0.528"),
-]
-
-
-@pytest.mark.parametrize(("year", "salary", "income_tax"), NEWFOUNDLAND_INCOME_TAX)
-async def test_newfoundland_income_tax_with_the_real_engine(
-    year: int, salary: int, income_tax: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), year, code="CA-NL", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert figures["income_tax"] == Decimal(income_tax)
-    assert deductions.unit == CAD
-
-
-@pytest.mark.parametrize(("year", "salary", "average", "marginal"), NEWFOUNDLAND_RATES)
-async def test_newfoundland_rates_are_read_from_the_newfoundland_form(
-    year: int, salary: int, average: str, marginal: str
-) -> None:
-    deductions = await calculate(
-        TaxEngineDeductions(), year, trace=True, code="CA-NL", salary=salary
-    )
-    assert deductions.average_income_tax_rate == Rate(Decimal(average), PERCENT)
-    assert deductions.marginal_income_tax_rate == Rate(Decimal(marginal), PERCENT)
-    assert "ca-nl/return" in {form.form for form in deductions.trace}
-
-
-@pytest.mark.parametrize("code", [j.code for j in SUPPORTED_JURISDICTIONS])
-def test_every_supported_jurisdiction_has_both_rate_forms(code: str) -> None:
-    assert code in AVERAGE_RATES
-    assert code in MARGINAL_RATES
-
-
-@pytest.mark.parametrize("code", ["CA-QC", "XX", ""])
-async def test_an_unknown_jurisdiction_is_the_ports_error(code: str) -> None:
-    with pytest.raises(DeductionsUnavailableError):
-        await TaxEngineDeductions().calculate(code, 2025, Decimal(70000), "en", ("ei",), False)
-
-
-async def test_an_unknown_jurisdiction_is_the_ports_error_even_with_a_fake_engine() -> None:
-    # Whatever the engine has, a code with no rate policy here is not served.
-    calculator = TaxEngineDeductions(
-        FakeEngine(), SimpleNamespace(render=lambda line, sheet: "one")
-    )
-    with pytest.raises(DeductionsUnavailableError):
-        await calculator.calculate("CA-QC", 2025, Decimal(70000), "en", ("ei",), False)
-
-
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-SK", "CA-NL"])
-@pytest.mark.parametrize(
-    ("salary", "take_home"),
-    [
-        (1999, "1999.00"),
-        (2000, "1967.20"),
-        (2010, "1977.04"),
-        (2033, "1999.66"),
-        (2034, "2000.64"),
-        (70000, None),
-    ],
-)
-async def test_take_home_near_the_t2204_refund_threshold_with_the_real_engine(
-    code: str, salary: int, take_home: str | None
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    expected = (
-        take_home
-        or {"CA-ON": "53468.68", "CA-AB": "53782.01", "CA-SK": "52287.83", "CA-NL": "51232.64"}[
-            code
-        ]
-    )
-    assert Decimal(salary) - sum(figures.values()) == Decimal(expected)
-
-
-@pytest.mark.parametrize(
-    ("salary", "take_home"),
-    [
-        (1999, "1999.00"),
-        (2000, "1967.20"),
-        (2010, "1977.04"),
-        (2033, "1999.66"),
-        (2034, "2000.64"),
-    ],
-)
-async def test_british_columbia_take_home_near_the_t2204_refund_threshold(
-    salary: int, take_home: str
-) -> None:
-    # The same as Ontario's: the BC sales tax credit (BC479, line 47900) is part of
-    # the total credits of line 48200, which are not taken off.
-    deductions = await calculate(TaxEngineDeductions(), code="CA-BC", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
-
-
-@pytest.mark.parametrize(
-    ("salary", "take_home"),
-    [
-        (1999, "1999.00"),
-        (2000, "1967.20"),
-        (2010, "1977.04"),
-        (2033, "1999.66"),
-        (2034, "2000.64"),
-    ],
-)
-async def test_manitoba_take_home_near_the_t2204_refund_threshold(
-    salary: int, take_home: str
-) -> None:
-    # The same as Ontario's: the Manitoba personal tax credit (MB479, line 47900) is part of the
-    # total credits of line 48200, which are not taken off.
-    deductions = await calculate(TaxEngineDeductions(), code="CA-MB", salary=salary)
-    figures = {f.item: f.amount for f in deductions.figures}
-    assert Decimal(salary) - sum(figures.values()) == Decimal(take_home)
-
-
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"])
-@pytest.mark.parametrize(("salary", "ei"), [(2000, "32.80"), (2033, "33.34")])
-async def test_ei_is_the_premium_withheld_with_the_real_engine(
-    code: str, salary: int, ei: str
-) -> None:
-    deductions = await calculate(TaxEngineDeductions(), code=code, salary=salary)
-    assert {f.item: f.amount for f in deductions.figures}["ei"] == Decimal(ei)

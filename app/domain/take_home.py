@@ -68,18 +68,6 @@ class FormTrace:
 
 
 @dataclass(frozen=True)
-class DeductionFigure:
-    """One kind of deduction (for example `ei`) and what the salary pays of it.
-
-    `income_tax` is the total payable, before the total credits are subtracted. The total
-    deductions are the plain sum of the figures.
-    """
-
-    item: str
-    amount: Decimal
-
-
-@dataclass(frozen=True)
 class Rate:
     """A rate of income tax and the unit it is in. `amount` is the figure as the calculator gives
     it (a fraction, not a percentage); `unit` says how to write it."""
@@ -90,10 +78,17 @@ class Rate:
 
 @dataclass(frozen=True)
 class Deductions:
-    """The figures asked for, with the steps that explain them. `unit` is the one unit all the
-    figures are in. The two rates have their own units and are not part of the figures."""
+    """What the calculator took off the salary, with the steps that explain it.
 
-    figures: tuple[DeductionFigure, ...]
+    `total_deductions` is the plain sum of the figures it takes off (contributions and income tax)
+    and `income_tax` is the tax part of it: the total payable, before the total credits are
+    subtracted. The calculator decides what the total is made of, not this service. `unit` is the
+    one unit the money figures are in. The two rates have their own units; they include the
+    contributions and leave out credits paid at filing.
+    """
+
+    total_deductions: Decimal
+    income_tax: Decimal
     trace: tuple[FormTrace, ...]
     unit: Unit
     average_income_tax_rate: Rate
@@ -116,28 +111,20 @@ class TakeHomeResult:
     def of(
         cls,
         salary: Decimal,
-        figures: tuple[DeductionFigure, ...],
+        deductions: Deductions,
         provisional: bool,
-        unit: Unit,
-        average_income_tax_rate: Rate,
-        marginal_income_tax_rate: Rate,
         trace: tuple[FormTrace, ...] | None,
     ) -> TakeHomeResult:
-        """Take-home pay is the salary minus the sum of the figures, in whole cents. `income_tax` is
-        the figure of that name alone, the tax part of the total."""
-        total = sum((figure.amount for figure in figures), Decimal(0))
-        income_tax = sum(
-            (figure.amount for figure in figures if figure.item == "income_tax"), Decimal(0)
-        )
+        """Take-home pay is the salary minus the total deductions, in whole cents."""
         return cls(
             salary=salary.quantize(CENTS),
-            total_deductions=total.quantize(CENTS),
-            income_tax=income_tax.quantize(CENTS),
-            take_home=(salary - total).quantize(CENTS),
+            total_deductions=deductions.total_deductions.quantize(CENTS),
+            income_tax=deductions.income_tax.quantize(CENTS),
+            take_home=(salary - deductions.total_deductions).quantize(CENTS),
             provisional=provisional,
-            unit=unit,
-            average_income_tax_rate=average_income_tax_rate,
-            marginal_income_tax_rate=marginal_income_tax_rate,
+            unit=deductions.unit,
+            average_income_tax_rate=deductions.average_income_tax_rate,
+            marginal_income_tax_rate=deductions.marginal_income_tax_rate,
             trace=trace,
         )
 
@@ -154,8 +141,6 @@ class SupportedJurisdiction:
     # Display name in English.
     name: str
     years: tuple[SupportedYear, ...]
-    # What "total deductions" means here: the sum of exactly these items.
-    deduction_items: tuple[str, ...]
     # The languages the text can be written in; the first is used when none is asked for.
     languages: tuple[str, ...]
 
@@ -173,42 +158,36 @@ SUPPORTED_JURISDICTIONS = (
         "CA-ON",
         "Ontario",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
-        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
     SupportedJurisdiction(
         "CA-AB",
         "Alberta",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
-        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
     SupportedJurisdiction(
         "CA-BC",
         "British Columbia",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
-        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
     SupportedJurisdiction(
         "CA-MB",
         "Manitoba",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
-        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
     SupportedJurisdiction(
         "CA-SK",
         "Saskatchewan",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
-        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
     SupportedJurisdiction(
         "CA-NL",
         "Newfoundland and Labrador",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
-        deduction_items=("cpp_base", "cpp_enhanced", "cpp2", "ei", "income_tax"),
         languages=("en",),
     ),
 )
