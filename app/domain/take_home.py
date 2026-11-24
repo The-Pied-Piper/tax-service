@@ -50,7 +50,7 @@ class TraceEntry:
     label: str | None
     name: str | None
     reference: str | None
-    amount: Decimal
+    amount: Decimal | None
     text: str
     unit: Unit | None
 

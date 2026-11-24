@@ -56,23 +56,26 @@ def _unit(unit: UnitDescription) -> Unit:
 
 
 def _rate(rate: EngineRate | None, who: str, which: str) -> Rate:
+    """The domain rate; one the engine does not declare makes the deductions unavailable."""
     if rate is None:
         raise DeductionsUnavailableError(f"{who}: the engine declares no {which} rate")
     return Rate(rate.value, _unit(rate.unit))
 
 
 def _entry(entry: EngineTraceEntry) -> TraceEntry:
+    """One trace line, with the unit of its figure; what the engine does not title is absent."""
     return TraceEntry(
         label=entry.label,
         name=_present(entry.name),
         reference=_present(entry.reference),
-        amount=entry.amount,  # type: ignore[arg-type]
+        amount=entry.amount,
         text=entry.text,
         unit=None if entry.unit is None else _unit(entry.unit),
     )
 
 
 def _form(trace: EngineFormTrace) -> FormTrace:
+    """The trace of one form, with its lines in order."""
     return FormTrace(
         form=trace.form,
         name=_present(trace.name),
@@ -97,22 +100,31 @@ class TaxEngineDeductions:
         who = f"{jurisdiction_code} {year}"
         if language_code != ENGLISH:
             raise DeductionsUnavailableError(f"{who}: no trace text in {language_code}")
-        request = TakeHomeRequest(
-            JurisdictionCode(jurisdiction_code),
-            year,
-            salary,
-            include_rates=True,
-            include_trace=with_trace,
-        )
         try:
-            result = await asyncio.to_thread(self._engine.compute, request)
-            return Deductions(
-                total_deductions=result.total_deductions,
-                income_tax=result.income_tax,
-                trace=tuple(_form(t) for t in result.trace or ()),
-                unit=_unit(result.unit),
-                average_income_tax_rate=_rate(result.average_tax_rate, who, "average"),
-                marginal_income_tax_rate=_rate(result.marginal_tax_rate, who, "marginal"),
+            return await asyncio.to_thread(
+                self._calculate, jurisdiction_code, year, salary, with_trace
             )
         except (EngineError, ArithmeticError, KeyError, TypeError, ValueError) as exc:
             raise DeductionsUnavailableError(f"{who}: {type(exc).__name__}") from exc
+
+    def _calculate(
+        self, jurisdiction_code: str, year: int, salary: Decimal, with_trace: bool
+    ) -> Deductions:
+        who = f"{jurisdiction_code} {year}"
+        result = self._engine.compute(
+            TakeHomeRequest(
+                JurisdictionCode(jurisdiction_code),
+                year,
+                salary,
+                include_rates=True,
+                include_trace=with_trace,
+            )
+        )
+        return Deductions(
+            total_deductions=result.total_deductions,
+            income_tax=result.income_tax,
+            trace=tuple(_form(t) for t in result.trace or ()),
+            unit=_unit(result.unit),
+            average_income_tax_rate=_rate(result.average_tax_rate, who, "average"),
+            marginal_income_tax_rate=_rate(result.marginal_tax_rate, who, "marginal"),
+        )
