@@ -575,8 +575,8 @@ def test_quebec_compute_with_both_rates(
     assert ("trace" in body) is trace
     if trace:
         assert "ca-qc/return" in {entry["form"] for entry in body["trace"]}
-    else:
-        assert "CPP" not in str(body) and "Canada Pension" not in str(body)
+    answer = {key: value for key, value in body.items() if key != "trace"}
+    assert "CPP" not in str(answer) and "Canada Pension" not in str(answer)
 
 
 def test_quebec_income_tax_is_the_total_payable_line_of_the_trace(client: TestClient) -> None:
