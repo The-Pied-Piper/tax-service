@@ -155,7 +155,7 @@ def test_every_trace_form_has_a_display_name(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("overrides", "field"),
     [
-        ({"jurisdiction_code": "CA-QC"}, "jurisdiction_code"),
+        ({"jurisdiction_code": "CA-YT"}, "jurisdiction_code"),
         ({"year": 2024}, "year"),
         ({"salary": "0.00"}, "salary"),
         ({"language_code": "fr"}, "language_code"),
@@ -234,6 +234,14 @@ def test_jurisdictions_list(client: TestClient) -> None:
                     {"year": 2026, "provisional": True},
                 ],
             },
+            {
+                "code": "CA-QC",
+                "name": "Quebec",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
         ],
         "next_page_token": "",
     }
@@ -270,7 +278,7 @@ def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> Non
     # Checked in this order: salary, jurisdiction_code, year, then the language.
     assert compute(client, salary="0.00", year=2024).json()["field"] == "salary"
     assert (
-        compute(client, jurisdiction_code="CA-QC", year=2024).json()["field"] == "jurisdiction_code"
+        compute(client, jurisdiction_code="CA-YT", year=2024).json()["field"] == "jurisdiction_code"
     )
     assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
 
@@ -523,6 +531,68 @@ def test_newfoundland_is_not_offered_in_a_year_it_lacks(client: TestClient) -> N
 
 
 def test_ontario_70000_is_unchanged_by_manitoba_and_saskatchewan(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"
+
+
+# Quebec: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
+QUEBEC = [
+    (2025, "20000.00", "1568.33", "151.53", "18431.67", "0.0784", "0.3453"),
+    (2025, "70000.00", "21382.18", "15919.71", "48617.82", "0.3055", "0.4514"),
+    (2025, "275000.00", "126271.66", "120191.67", "148728.34", "0.4592", "0.5875"),
+    (2026, "20000.00", "1478.11", "92.61", "18521.89", "0.0739", "0.2091"),
+    (2026, "70000.00", "20926.61", "15540.41", "49073.39", "0.2990", "0.4503"),
+    (2026, "275000.00", "125394.48", "119160.58", "149605.52", "0.4560", "0.5875"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), QUEBEC
+)
+def test_quebec_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    income_tax: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-QC", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-qc/return" in {entry["form"] for entry in body["trace"]}
+    else:
+        assert "CPP" not in str(body) and "Canada Pension" not in str(body)
+
+
+def test_quebec_income_tax_is_the_total_payable_line_of_the_trace(client: TestClient) -> None:
+    body = compute(client, jurisdiction_code="CA-QC", include_trace=True).json()
+    (t1,) = [form for form in body["trace"] if form["form"] == "ca-qc/return"]
+    amounts = [line["amount"] for line in t1["lines"] if line["label"] == "total_payable"]
+    assert amounts == [body["income_tax"]]
+
+
+def test_quebec_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-QC", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
+def test_ontario_70000_is_unchanged_by_quebec(client: TestClient) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
 
 
