@@ -536,12 +536,12 @@ def test_ontario_70000_is_unchanged_by_manitoba_and_saskatchewan(client: TestCli
 
 # Quebec: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 QUEBEC = [
-    (2025, "20000.00", "1568.33", "151.53", "18431.67", "0.0784", "0.3453"),
-    (2025, "70000.00", "21382.18", "15919.71", "48617.82", "0.3055", "0.4514"),
-    (2025, "275000.00", "126271.66", "120191.67", "148728.34", "0.4592", "0.5875"),
-    (2026, "20000.00", "1478.11", "92.61", "18521.89", "0.0739", "0.2091"),
-    (2026, "70000.00", "20926.61", "15540.41", "49073.39", "0.2990", "0.4503"),
-    (2026, "275000.00", "125394.48", "119160.58", "149605.52", "0.4560", "0.5875"),
+    (2025, "20000.00", "1544.81", "128.01", "18455.19", "0.0772", "0.3234"),
+    (2025, "70000.00", "20140.79", "14678.32", "49859.21", "0.2877", "0.4194"),
+    (2025, "275000.00", "116021.59", "109941.60", "158978.41", "0.4219", "0.5331"),
+    (2026, "20000.00", "1462.83", "77.33", "18537.17", "0.0731", "0.1878"),
+    (2026, "70000.00", "19732.79", "14346.59", "50267.21", "0.2819", "0.4182"),
+    (2026, "275000.00", "115271.24", "109037.34", "159728.76", "0.4192", "0.5331"),
 ]
 
 
@@ -579,10 +579,14 @@ def test_quebec_compute_with_both_rates(
     assert "CPP" not in str(answer) and "Canada Pension" not in str(answer)
 
 
-def test_quebec_income_tax_is_the_total_payable_line_of_the_trace(client: TestClient) -> None:
+def test_quebec_income_tax_is_the_income_tax_after_abatement_line_of_the_trace(
+    client: TestClient,
+) -> None:
     body = compute(client, jurisdiction_code="CA-QC", include_trace=True).json()
     (t1,) = [form for form in body["trace"] if form["form"] == "ca-qc/return"]
-    amounts = [line["amount"] for line in t1["lines"] if line["label"] == "total_payable"]
+    amounts = [
+        line["amount"] for line in t1["lines"] if line["label"] == "income_tax_after_abatement"
+    ]
     assert amounts == [body["income_tax"]]
 
 
