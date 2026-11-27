@@ -12,7 +12,7 @@ click==8.5.1
     # via
     #   -c requirements.txt
     #   black
-datamodel-code-generator==0.91.0
+datamodel-code-generator==0.101.0
     # via -r tools/service_gen/requirements.in
 genson==1.4.0
     # via datamodel-code-generator
@@ -43,11 +43,11 @@ pathspec==1.1.1
     # via black
 platformdirs==4.14.5
     # via black
-pydantic==2.14.3
+pydantic==2.14.4
     # via
     #   -c requirements.txt
     #   datamodel-code-generator
-pydantic-core==2.50.4
+pydantic-core==2.50.5
     # via
     #   -c requirements.txt
     #   pydantic
