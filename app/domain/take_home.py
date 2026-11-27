@@ -193,6 +193,24 @@ SUPPORTED_JURISDICTIONS = (
         languages=("en",),
     ),
     SupportedJurisdiction(
+        "CA-NB",
+        "New Brunswick",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        languages=("en",),
+    ),
+    SupportedJurisdiction(
+        "CA-NS",
+        "Nova Scotia",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        languages=("en",),
+    ),
+    SupportedJurisdiction(
+        "CA-PE",
+        "Prince Edward Island",
+        (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
+        languages=("en",),
+    ),
+    SupportedJurisdiction(
         "CA-QC",
         "Québec",
         (SupportedYear(2025, provisional=False), SupportedYear(2026, provisional=True)),
