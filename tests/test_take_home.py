@@ -235,6 +235,30 @@ def test_jurisdictions_list(client: TestClient) -> None:
                 ],
             },
             {
+                "code": "CA-NB",
+                "name": "New Brunswick",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
+            {
+                "code": "CA-NS",
+                "name": "Nova Scotia",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
+            {
+                "code": "CA-PE",
+                "name": "Prince Edward Island",
+                "years": [
+                    {"year": 2025, "provisional": False},
+                    {"year": 2026, "provisional": True},
+                ],
+            },
+            {
                 "code": "CA-QC",
                 "name": "Québec",
                 "years": [
@@ -534,6 +558,158 @@ def test_ontario_70000_is_unchanged_by_manitoba_and_saskatchewan(client: TestCli
     assert compute(client).json()["take_home"] == "53468.68"
 
 
+def test_ontario_70000_is_unchanged_by_the_atlantic_provinces(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"
+
+
+# New Brunswick: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+NEW_BRUNSWICK = [
+    (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0734", "0.2099"),
+    (2025, "70000.00", "18296.76", "13262.53", "51703.24", "0.2614", "0.3892"),
+    (2025, "275000.00", "108387.35", "102879.77", "166612.65", "0.3941", "0.5250"),
+    (2026, "20000.00", "1411.24", "103.49", "18588.76", "0.0706", "0.2052"),
+    (2026, "70000.00", "17958.18", "12878.36", "52041.82", "0.2565", "0.3895"),
+    (2026, "275000.00", "107586.16", "101816.64", "167413.84", "0.3912", "0.5250"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), NEW_BRUNSWICK
+)
+def test_new_brunswick_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    income_tax: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-NB", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-nb/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_new_brunswick_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-NB", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
+# Nova Scotia: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+NOVA_SCOTIA = [
+    (2025, "20000.00", "2020.17", "710.42", "17979.83", "0.1010", "0.3406"),
+    (2025, "70000.00", "19832.97", "14798.74", "50167.03", "0.2833", "0.4160"),
+    (2025, "275000.00", "114677.40", "109169.82", "160322.60", "0.4170", "0.5400"),
+    (2026, "20000.00", "1947.22", "639.47", "18052.78", "0.0974", "0.3359"),
+    (2026, "70000.00", "19503.72", "14423.90", "50496.28", "0.2786", "0.4162"),
+    (2026, "275000.00", "113960.50", "108190.98", "161039.50", "0.4144", "0.5400"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"), NOVA_SCOTIA
+)
+def test_nova_scotia_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    income_tax: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-NS", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-ns/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_nova_scotia_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-NS", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
+# Prince Edward Island: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+PRINCE_EDWARD_ISLAND = [
+    (2025, "20000.00", "1501.67", "191.92", "18498.33", "0.0751", "0.2977"),
+    (2025, "70000.00", "18975.79", "13941.56", "51024.21", "0.2711", "0.4149"),
+    (2025, "275000.00", "111595.37", "106087.79", "163404.63", "0.4058", "0.5200"),
+    (2026, "20000.00", "1412.01", "104.26", "18587.99", "0.0706", "0.2930"),
+    (2026, "70000.00", "18616.10", "13536.28", "51383.90", "0.2659", "0.4152"),
+    (2026, "275000.00", "111631.91", "105862.39", "163368.09", "0.4059", "0.5300"),
+]
+
+
+@pytest.mark.parametrize("trace", [False, True])
+@pytest.mark.parametrize(
+    ("year", "salary", "total", "income_tax", "take_home", "average", "marginal"),
+    PRINCE_EDWARD_ISLAND,
+)
+def test_prince_edward_island_compute_with_both_rates(
+    client: TestClient,
+    year: int,
+    salary: str,
+    total: str,
+    income_tax: str,
+    take_home: str,
+    average: str,
+    marginal: str,
+    trace: bool,
+) -> None:
+    response = compute(
+        client, jurisdiction_code="CA-PE", year=year, salary=salary, include_trace=trace
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_deductions"] == total
+    assert body["income_tax"] == income_tax
+    assert body["take_home"] == take_home
+    assert body["provisional"] is (year == 2026)
+    assert body["unit"] == CAD
+    assert body["average_income_tax_rate"] == {"amount": average, "unit": PERCENT}
+    assert body["marginal_income_tax_rate"] == {"amount": marginal, "unit": PERCENT}
+    assert ("trace" in body) is trace
+    if trace:
+        assert "ca-pe/return" in {entry["form"] for entry in body["trace"]}
+
+
+def test_prince_edward_island_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
+    response = compute(client, jurisdiction_code="CA-PE", year=2024)
+    assert response.status_code == 400
+    assert response.json()["field"] == "year"
+
+
 # Quebec: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 QUEBEC = [
     (2025, "20000.00", "1544.81", "128.01", "18455.19", "0.0772", "0.3234"),
@@ -618,13 +794,15 @@ def test_contributions_are_total_deductions_less_income_tax_in_every_province(
     """CPP and EI do not depend on the province, so total_deductions less income_tax (what they add
     up to) is the same everywhere; it breaks if income_tax is read from a different line."""
     contributions = set()
-    for code in ("CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"):
+    for code in ("CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL", "CA-NB", "CA-NS", "CA-PE"):
         body = compute(client, jurisdiction_code=code, year=year, salary=salary).json()
         contributions.add(Decimal(body["total_deductions"]) - Decimal(body["income_tax"]))
     assert len(contributions) == 1
 
 
-@pytest.mark.parametrize("code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL"])
+@pytest.mark.parametrize(
+    "code", ["CA-ON", "CA-AB", "CA-BC", "CA-MB", "CA-SK", "CA-NL", "CA-NB", "CA-NS", "CA-PE"]
+)
 def test_income_tax_is_the_total_payable_line_of_the_trace(client: TestClient, code: str) -> None:
     body = compute(client, jurisdiction_code=code, include_trace=True).json()
     (t1,) = [form for form in body["trace"] if form["form"] == "ca/t1_tax_and_credits"]
