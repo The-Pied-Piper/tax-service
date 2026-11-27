@@ -15,8 +15,14 @@ concurrency:
 
 jobs:
   check:
+    name: check (py${{ matrix.python-version }})
     # Same commands as local development, inside the same dev image.
     runs-on: ubuntu-latest
+    strategy:
+      # Let every version finish, so one failure shows all the versions that fail.
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,10 +48,11 @@ jobs:
           build-args: |
             UID=${{ steps.ids.outputs.uid }}
             GID=${{ steps.ids.outputs.gid }}
+            PYTHON_IMAGE=python:${{ matrix.python-version }}-slim
           tags: ${{ github.event.repository.name }}-app
           load: true
-          cache-from: type=gha,scope=dev
-          cache-to: type=gha,scope=dev,mode=max
+          cache-from: type=gha,scope=dev-py${{ matrix.python-version }}
+          cache-to: type=gha,scope=dev-py${{ matrix.python-version }},mode=max
 
       - name: Check generated code, lint, typecheck, test, check migrations
         run: ./dev.sh check
