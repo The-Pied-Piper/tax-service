@@ -307,7 +307,7 @@ def test_the_first_unsupported_value_is_the_one_named(client: TestClient) -> Non
     assert compute(client, year=2024, language_code="fr").json()["field"] == "year"
 
 
-# Alberta: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+# Alberta: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 ALBERTA = [
     (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0734", "0.2099"),
     (2025, "70000.00", "16217.99", "11183.76", "53782.01", "0.2317", "0.3503"),
@@ -407,7 +407,7 @@ def test_ontario_70000_is_unchanged_by_british_columbia(client: TestClient) -> N
     assert compute(client).json()["take_home"] == "53468.68"
 
 
-# Manitoba: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+# Manitoba: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 MANITOBA = [
     (2025, "20000.00", "1751.92", "442.17", "18248.08", "0.0876", "0.3193"),
     (2025, "70000.00", "18367.46", "13333.23", "51632.54", "0.2624", "0.3762"),
@@ -456,7 +456,7 @@ def test_manitoba_is_not_offered_in_a_year_it_lacks(client: TestClient) -> None:
     assert response.json()["field"] == "year"
 
 
-# Saskatchewan: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+# Saskatchewan: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 SASKATCHEWAN = [
     (2025, "20000.00", "1467.84", "158.09", "18532.16", "0.0734", "0.2099"),
     (2025, "70000.00", "17712.17", "12677.94", "52287.83", "0.2530", "0.3738"),
@@ -555,6 +555,10 @@ def test_newfoundland_is_not_offered_in_a_year_it_lacks(client: TestClient) -> N
 
 
 def test_ontario_70000_is_unchanged_by_manitoba_and_saskatchewan(client: TestClient) -> None:
+    assert compute(client).json()["take_home"] == "53468.68"
+
+
+def test_ontario_70000_is_unchanged_by_the_atlantic_provinces(client: TestClient) -> None:
     assert compute(client).json()["take_home"] == "53468.68"
 
 
@@ -706,7 +710,7 @@ def test_prince_edward_island_is_not_offered_in_a_year_it_lacks(client: TestClie
     assert response.json()["field"] == "year"
 
 
-# Quebec: (year, salary, total_deductions, income_tax, take_home, avg, marginal)
+# Quebec: (year, salary, total_deductions, income_tax, take_home, average rate, marginal rate)
 QUEBEC = [
     (2025, "20000.00", "1544.81", "128.01", "18455.19", "0.0772", "0.3234"),
     (2025, "70000.00", "20140.79", "14678.32", "49859.21", "0.2877", "0.4194"),
