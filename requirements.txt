@@ -76,7 +76,7 @@ python-dotenv==1.2.4
     #   uvicorn
 python-multipart==0.0.33
     # via connexion
-pyyaml==6.0.3
+pyyaml==6.0.4
     # via
     #   connexion
     #   tax-engine

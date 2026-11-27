@@ -53,7 +53,7 @@ pydantic-core==2.50.5
     #   pydantic
 pytokens==0.4.1
     # via black
-pyyaml==6.0.3
+pyyaml==6.0.4
     # via
     #   -c requirements.txt
     #   -r tools/service_gen/requirements.in
