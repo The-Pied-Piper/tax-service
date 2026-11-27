@@ -38,7 +38,7 @@ click==8.5.1
     #   uvicorn
 connexion[swagger-ui,uvicorn]==3.3.0
     # via -r requirements.in
-datamodel-code-generator==0.91.0
+datamodel-code-generator==0.101.0
     # via -r tools/service_gen/requirements.in
 genson==1.4.0
     # via datamodel-code-generator
