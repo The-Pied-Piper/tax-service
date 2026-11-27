@@ -207,7 +207,7 @@ tax-engine==0.6.0
     # via -r requirements.in
 typeguard==4.6.0
     # via inflect
-types-pyyaml==6.0.12.20261103
+types-pyyaml==6.0.12.20261122
     # via -r requirements-dev.in
 typing-extensions==4.16.0
     # via
