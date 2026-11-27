@@ -135,14 +135,14 @@ platformdirs==4.14.5
     # via black
 pluggy==1.7.0
     # via pytest
-pydantic==2.14.3
+pydantic==2.14.4
     # via
     #   -r requirements.in
     #   datamodel-code-generator
     #   openapi-schema-validator
     #   openapi-spec-validator
     #   pydantic-settings
-pydantic-core==2.50.4
+pydantic-core==2.50.5
     # via pydantic
 pydantic-settings==2.16.2
     # via
